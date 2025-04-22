@@ -36,20 +36,8 @@ const handleCreateProposal = async () => {
   if (!formData.value.title || !formData.value.clientName) {
     return // Add validation handling if needed
   }
-
-  try {
-    const newProposal = await store.dispatch('createProposal', formData.value)
-    showModal.value = false
-    // Reset form data
-    formData.value = {
-      title: '',
-      clientName: ''
-    }
-    // Navigate to the create proposal page
-    router.push('/proposal/create')
-  } catch (error) {
-    console.error('Failed to create proposal:', error)
-  }
+  console.log('Creating proposal with data:', formData.value);
+  router.push('/proposal/create')
 }
 </script>
 
