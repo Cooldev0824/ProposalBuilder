@@ -2,7 +2,6 @@
 import Editor from '../components/Editor.vue'
 import { ref } from 'vue'
 
-const price = ref('$0.00')
 const zoom = ref(100)
 
 const tools = [
@@ -30,7 +29,7 @@ const decreaseZoom = () => {
 <template>
   <v-app>
     <v-app-bar color="white" elevation="1" height="48">
-      <v-btn icon class="mr-2" size="small" color="grey-darken-1">
+      <v-btn icon class="mr-2" size="small" @click="$router.back()" color="grey-darken-1">
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
       

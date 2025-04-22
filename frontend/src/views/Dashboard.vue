@@ -89,9 +89,9 @@ const handleCreateProposal = async () => {
                 <v-table v-else>
                   <thead>
                     <tr>
-                      <th>Name</th>
+                      <th>Proposal Name</th>
+                      <th>Client Name</th>
                       <th>Created</th>
-                      <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
