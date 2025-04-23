@@ -1,86 +1,81 @@
-import { createStore } from 'vuex'
-import axios from 'axios'
+import { createStore } from 'vuex';
+import axios from 'axios';
 
-export default createStore({
+const API_URL = 'http://localhost:3000/api';
+
+const store = createStore({
   state: {
-    proposals: [],
-    currentProposal: null,
-    loading: false,
-    error: null
+    proposals: [], // List of proposals
+    currentProposal: null, // Currently selected or edited proposal
   },
-  
   mutations: {
-    SET_PROPOSALS(state, proposals) {
-      state.proposals = proposals
+    setProposals(state, proposals) {
+      state.proposals = proposals;
     },
-    SET_CURRENT_PROPOSAL(state, proposal) {
-      state.currentProposal = proposal
+    setCurrentProposal(state, proposal) {
+      state.currentProposal = proposal;
     },
-    SET_LOADING(state, loading) {
-      state.loading = loading
+    addProposalID(state, proposal) {
+      state.proposals.push(proposal);
     },
-    SET_ERROR(state, error) {
-      state.error = error
+    updateProposal(state, updatedProposal) {
+      const index = state.proposals.findIndex(p => p.id === updatedProposal.id);
+      if (index !== -1) {
+        state.proposals[index] = updatedProposal;
+      }
     },
-    ADD_PROPOSAL(state, proposal) {
-      state.proposals.unshift(proposal)
-    }
+    deleteProposal(state, proposalId) {
+      state.proposals = state.proposals.filter(p => p.id !== proposalId);
+    },
   },
-  
   actions: {
     async fetchProposals({ commit }) {
-      commit('SET_LOADING', true)
       try {
-        const response = await axios.get('/api/proposals')
-        commit('SET_PROPOSALS', response.data)
+        const response = await axios.get(`${API_URL}/proposals`);
+        commit('setProposals', response.data);
       } catch (error) {
-        commit('SET_ERROR', error.message)
-      } finally {
-        commit('SET_LOADING', false)
+        console.error('Error fetching proposals:', error);
       }
     },
-    
-    async fetchProposal({ commit }, id) {
-      commit('SET_LOADING', true)
+    async fetchProposalById({ commit }, id) {
       try {
-        const response = await axios.get(`/api/proposals/${id}`)
-        commit('SET_CURRENT_PROPOSAL', response.data)
+        const response = await axios.get(`${API_URL}/proposals/${id}`);
+        commit('setCurrentProposal', response.data);
       } catch (error) {
-        commit('SET_ERROR', error.message)
-      } finally {
-        commit('SET_LOADING', false)
+        console.error('Error fetching proposal:', error);
       }
     },
-    
-    async updateProposal({ commit }, { id, data }) {
+    async createProposalID({ commit }, proposal) {
       try {
-        const response = await axios.put(`/api/proposals/${id}`, data)
-        commit('SET_CURRENT_PROPOSAL', response.data)
+        const response = await axios.post(`${API_URL}/proposalID`, proposal);
+        commit('addProposalID', response.data);
+        return response.data; // Return the created proposal
       } catch (error) {
-        commit('SET_ERROR', error.message)
+        console.error('Error creating proposalID:', error);
+        throw error; // Re-throw the error to handle it in the component
       }
     },
-    
-    async createProposal({ commit }, data) {
+    async updateProposal({ commit }, proposal) {
       try {
-        const response = await axios.post('/api/proposals', {
-          title: data.title,
-          metadata: {
-            client: {
-              name: data.clientName
-            }
-          },
-          status: 'draft'
-        })
-        
-        // Add the new proposal to the proposals list
-        commit('ADD_PROPOSAL', response.data)
-        return response.data
+        const response = await axios.put(`${API_URL}/proposals/${proposal.id}`, proposal);
+        commit('updateProposal', response.data);
       } catch (error) {
-        commit('SET_ERROR', error.message)
-        throw error
+        console.error('Error updating proposal:', error);
       }
-    }
-  }
-})
+    },
+    async deleteProposal({ commit }, id) {
+      try {
+        await axios.delete(`${API_URL}/proposals/${id}`);
+        commit('deleteProposal', id);
+      } catch (error) {
+        console.error('Error deleting proposal:', error);
+      }
+    },
+  },
+  getters: {
+    allProposals: state => state.proposals,
+    currentProposal: state => state.currentProposal,
+  },
+});
 
+export default store;

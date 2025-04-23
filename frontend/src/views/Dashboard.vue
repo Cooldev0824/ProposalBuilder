@@ -1,44 +1,62 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useStore } from 'vuex'
+import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useStore } from 'vuex';
 
-const router = useRouter()
-const store = useStore()
-const proposals = ref([])
-const loading = ref(true)
-const showModal = ref(false)
+const router = useRouter();
+const store = useStore();
+const proposals = ref([]);
+const loading = ref(true);
+const showModal = ref(false);
+const search = ref(''); // Add a search input
 
 // Form data
 const formData = ref({
   title: '',
-  clientName: ''
-})
+  clientName: '',
+  status: 'draft',
+});
 
+// Fetch proposals on mount
 onMounted(async () => {
   try {
-    await store.dispatch('fetchProposals')
-    proposals.value = store.state.proposals
+    await store.dispatch('fetchProposals');
+    proposals.value = store.state.proposals;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
+
+// Computed property for filtered proposals
+const filteredProposals = computed(() => {
+  return proposals.value.filter((proposal) => {
+    const searchTerm = search.value.toLowerCase();
+    return (
+      proposal.title.toLowerCase().includes(searchTerm) ||
+      proposal.clientName.toLowerCase().includes(searchTerm)
+    );
+  });
+});
 
 const openProposal = (id) => {
-  router.push(`/proposal/edit/${id}`)
-}
+  router.push(`/proposal/edit/${id}`);
+};
 
 const createNewProposal = () => {
-  showModal.value = true
-}
+  showModal.value = true;
+};
 
 const handleCreateProposal = async () => {
   if (!formData.value.title || !formData.value.clientName) {
-    return // Add validation handling if needed
+    return; // Add validation handling if needed
   }
-  console.log('Creating proposal with data:', formData.value);
-  router.push('/proposal/create')
-}
+  try {
+    const createdProposal = await store.dispatch('createProposalID', formData.value);
+    router.push(`/proposal/create/${createdProposal._id}`); // Redirect to the edit page of the created proposal
+  } catch (error) {
+    console.error('Error creating proposal:', error);
+  }
+};
 </script>
 
 <template>
@@ -84,32 +102,27 @@ const handleCreateProposal = async () => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="proposal in proposals" :key="proposal.id" @click="openProposal(proposal.id)" style="cursor: pointer">
-                      <td>{{ proposal.name }}</td>
-                      <td>{{ new Date(proposal.created_at).toLocaleDateString() }}</td>
+                    <tr
+                      v-for="proposal in filteredProposals"
+                      :key="proposal.id"
+                      @click="openProposal(proposal._id)"
+                      style="cursor: pointer"
+                    >
+                      <td>{{ proposal.title }}</td>
+                      <td>{{ proposal.clientName }}</td>
+                      <td>{{ new Date(proposal.createdAt).toLocaleDateString() }}</td>
                       <td>
-                        <v-chip
-                          :color="proposal.status === 'draft' ? 'grey' : 'success'"
-                          size="small"
-                        >
-                          {{ proposal.status }}
-                        </v-chip>
-                      </td>
-                      <td>
-                        <v-btn
-                          icon
-                          size="small"
-                          @click.stop="openProposal(proposal.id)"
-                        >
-                          <v-icon>mdi-pencil</v-icon>
+                        <v-btn icon size="small" @click.stop="openProposal(proposal._id)">
+                          <v-icon size="small">mdi-pencil</v-icon>
                         </v-btn>
                         <v-btn
                           icon
                           size="small"
                           color="error"
-                          @click.stop="deleteProposal(proposal.id)"
+                          @click.stop="deleteProposal(proposal._id)"
+                          style="margin-left: 8px;"
                         >
-                          <v-icon>mdi-delete</v-icon>
+                          <v-icon size="small">mdi-delete</v-icon>
                         </v-btn>
                       </td>
                     </tr>
@@ -118,15 +131,12 @@ const handleCreateProposal = async () => {
 
                 <!-- Empty state -->
                 <v-sheet
-                  v-if="!loading && proposals.length === 0"
+                  v-if="!loading && filteredProposals.length === 0"
                   class="d-flex align-center justify-center flex-column"
                   height="200"
                 >
                   <v-icon size="large" color="grey">mdi-file-document-outline</v-icon>
-                  <div class="text-h6 mt-4">No proposals yet</div>
-                  <v-btn color="primary" class="mt-4" @click="createNewProposal">
-                    Create your first proposal
-                  </v-btn>
+                  <div class="text-h6 mt-4">No proposals found</div>
                 </v-sheet>
               </v-card-text>
             </v-card>
@@ -144,39 +154,20 @@ const handleCreateProposal = async () => {
 
         <v-card-text class="pt-4">
           <v-form @submit.prevent="handleCreateProposal">
-            <v-text-field
-              v-model="formData.title"
-              label="Proposal Title"
-              required
-              :rules="[v => !!v || 'Title is required']"
-              placeholder="Enter proposal title"
-              class="mb-4"
-            ></v-text-field>
+            <v-text-field v-model="formData.title" label="Proposal Title" required
+              :rules="[v => !!v || 'Title is required']" placeholder="Enter proposal title" class="mb-4"></v-text-field>
 
-            <v-text-field
-              v-model="formData.clientName"
-              label="Client Name"
-              required
-              :rules="[v => !!v || 'Client name is required']"
-              placeholder="Enter client name"
-            ></v-text-field>
+            <v-text-field v-model="formData.clientName" label="Client Name" required
+              :rules="[v => !!v || 'Client name is required']" placeholder="Enter client name"></v-text-field>
           </v-form>
         </v-card-text>
 
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn
-            color="grey-darken-1"
-            variant="text"
-            @click="showModal = false"
-          >
+          <v-btn color="grey-darken-1" variant="text" @click="showModal = false">
             Cancel
           </v-btn>
-          <v-btn
-            color="primary"
-            @click="handleCreateProposal"
-            :disabled="!formData.title || !formData.clientName"
-          >
+          <v-btn color="primary" @click="handleCreateProposal" :disabled="!formData.title || !formData.clientName">
             Create Proposal
           </v-btn>
         </v-card-actions>
@@ -202,6 +193,3 @@ const handleCreateProposal = async () => {
   padding-top: 20px !important;
 }
 </style>
-
-
-

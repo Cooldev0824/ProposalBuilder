@@ -1,28 +1,72 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const proposalRoutes = require('./routes/proposal.routes');
-const authRoutes = require('./routes/auth.routes');
+// filepath: d:\Work\ProposalBuilder\backend\server.js
 
-dotenv.config();
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const Proposal = require('../models/Proposal')
+
 const app = express();
+const PORT = 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-// Database connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
+// MongoDB Connection
+mongoose.connect('mongodb://localhost:27017/proposals', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Routes
-app.use('/api/proposals', proposalRoutes);
-app.use('/api/auth', authRoutes);
+app.get('/api/proposals', async (req, res) => {
+  try{
+    const proposals = await Proposal.find();
+    console.log(proposals);
+    res.status(201).json(proposals);
+  }catch (error){
+    console.error('Error creating proposal:', error);
+    res.status(500).json({ error: 'Failed to fetch proposal' });
+  }
+});
 
-const PORT = process.env.PORT || 3000;
+app.get('/api/proposals/:id', async (req, res) => {
+  const proposal = await Proposal.findById(req.params.id);
+  res.json(proposal);
+});
+
+app.post('/api/proposals', async (req, res) => {
+  console.log(req.body);
+  const proposal = new Proposal(req.body);
+  await proposal.save();
+  res.json(proposal);
+});
+
+app.post('/api/proposalID', async (req, res) => {
+  try {
+    const { title, clientName } = req.body; // Destructure the fields from req.body
+    const proposal = new Proposal({ title, clientName }); // Create a new Proposal instance
+    const savedProposal = await proposal.save(); // Save the proposal to the database
+    res.status(201).json(savedProposal); // Return the saved proposal
+  } catch (error) {
+    console.error('Error creating proposal:', error);
+    res.status(500).json({ error: 'Failed to create proposal' });
+  }
+});
+
+app.put('/api/proposals/:id', async (req, res) => {
+  const proposal = await Proposal.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  res.json(proposal);
+});
+
+app.delete('/api/proposals/:id', async (req, res) => {
+  await Proposal.findByIdAndDelete(req.params.id);
+  res.json({ message: 'Proposal deleted' });
+});
+
+// Start Server
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
