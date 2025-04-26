@@ -9,15 +9,22 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@editorjs/checklist": "^1.6.0",
     "@editorjs/editorjs": "^2.30.8",
     "@editorjs/header": "^2.8.8",
     "@editorjs/image": "^2.10.2",
     "@editorjs/list": "^2.0.6",
     "@editorjs/paragraph": "^2.11.7",
+    "@editorjs/quote": "^2.7.6",
+    "@editorjs/table": "^2.4.4",
     "@mdi/font": "^7.4.47",
     "@vueuse/core": "^10.7.2",
     "axios": "^1.6.7",
+    "draggable-resizable-vue3": "^1.0.94-beta",
+    "html2pdf.js": "^0.10.3",
     "vue": "^3.5.13",
+    "vue-draggable": "^2.0.6",
+    "vue-resizable": "^2.1.7",
     "vue-router": "^4.2.5",
     "vuetify": "^3.5.1",
     "vuex": "^4.1.0"

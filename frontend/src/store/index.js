@@ -1,7 +1,7 @@
 import { createStore } from 'vuex';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'http://localhost:3001/api';
 
 const store = createStore({
   state: {
@@ -11,9 +11,6 @@ const store = createStore({
   mutations: {
     setProposals(state, proposals) {
       state.proposals = proposals;
-    },
-    setCurrentProposal(state, proposal) {
-      state.currentProposal = proposal;
     },
     addProposalID(state, proposal) {
       state.proposals.push(proposal);
@@ -35,14 +32,6 @@ const store = createStore({
         commit('setProposals', response.data);
       } catch (error) {
         console.error('Error fetching proposals:', error);
-      }
-    },
-    async fetchProposalById({ commit }, id) {
-      try {
-        const response = await axios.get(`${API_URL}/proposals/${id}`);
-        commit('setCurrentProposal', response.data);
-      } catch (error) {
-        console.error('Error fetching proposal:', error);
       }
     },
     async createProposalID({ commit }, proposal) {

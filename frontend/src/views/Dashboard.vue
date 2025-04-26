@@ -39,7 +39,7 @@ const filteredProposals = computed(() => {
 });
 
 const openProposal = (id) => {
-  router.push(`/proposal/edit/${id}`);
+  router.push(`/proposal/create/${id}`);
 };
 
 const createNewProposal = () => {
@@ -55,6 +55,16 @@ const handleCreateProposal = async () => {
     router.push(`/proposal/create/${createdProposal._id}`); // Redirect to the edit page of the created proposal
   } catch (error) {
     console.error('Error creating proposal:', error);
+  }
+};
+
+const deleteProposal = async (id) => {
+  try {
+    const res = await store.dispatch('deleteProposal', id);
+    console.log(res);
+    proposals.value = proposals.value.filter((proposal) => proposal._id !== id);
+  } catch (error) {
+    console.error('Error deleting proposal:', error);
   }
 };
 </script>
@@ -78,13 +88,8 @@ const handleCreateProposal = async () => {
               <v-card-title>
                 My Proposals
                 <v-spacer></v-spacer>
-                <v-text-field
-                  v-model="search"
-                  append-icon="mdi-magnify"
-                  label="Search"
-                  single-line
-                  hide-details
-                ></v-text-field>
+                <v-text-field v-model="search" append-icon="mdi-magnify" label="Search" single-line
+                  hide-details></v-text-field>
               </v-card-title>
 
               <v-card-text>
@@ -102,27 +107,21 @@ const handleCreateProposal = async () => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr
-                      v-for="proposal in filteredProposals"
-                      :key="proposal.id"
-                      @click="openProposal(proposal._id)"
-                      style="cursor: pointer"
-                    >
+                    <tr v-for="proposal in filteredProposals" :key="proposal.id" @click="openProposal(proposal._id)"
+                      style="cursor: pointer">
                       <td>{{ proposal.title }}</td>
                       <td>{{ proposal.clientName }}</td>
                       <td>{{ new Date(proposal.createdAt).toLocaleDateString() }}</td>
                       <td>
-                        <v-btn icon size="small" @click.stop="openProposal(proposal._id)">
+                        <v-btn icon color="primary" size="small" @click.stop="openProposal(proposal._id)">
                           <v-icon size="small">mdi-pencil</v-icon>
                         </v-btn>
-                        <v-btn
-                          icon
-                          size="small"
-                          color="error"
-                          @click.stop="deleteProposal(proposal._id)"
-                          style="margin-left: 8px;"
-                        >
+                        <v-btn icon size="small" color="error" @click.stop="deleteProposal(proposal._id)"
+                          style="margin-left: 8px;">
                           <v-icon size="small">mdi-delete</v-icon>
+                        </v-btn>
+                        <v-btn icon color='success' size="small" @click.stop="" style="margin-left: 8px;">
+                          <v-icon size="small">mdi-file-export</v-icon>
                         </v-btn>
                       </td>
                     </tr>
@@ -130,11 +129,8 @@ const handleCreateProposal = async () => {
                 </v-table>
 
                 <!-- Empty state -->
-                <v-sheet
-                  v-if="!loading && filteredProposals.length === 0"
-                  class="d-flex align-center justify-center flex-column"
-                  height="200"
-                >
+                <v-sheet v-if="!loading && filteredProposals.length === 0"
+                  class="d-flex align-center justify-center flex-column" height="200">
                   <v-icon size="large" color="grey">mdi-file-document-outline</v-icon>
                   <div class="text-h6 mt-4">No proposals found</div>
                 </v-sheet>
