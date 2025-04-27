@@ -24,6 +24,9 @@ const store = createStore({
     deleteProposal(state, proposalId) {
       state.proposals = state.proposals.filter(p => p.id !== proposalId);
     },
+    setCurrentProposal(state, proposal) {
+      state.currentProposal = proposal;
+    },
   },
   actions: {
     async fetchProposals({ commit }) {
@@ -48,8 +51,10 @@ const store = createStore({
       try {
         const response = await axios.put(`${API_URL}/proposals/${proposal.id}`, proposal);
         commit('updateProposal', response.data);
+        return response.data;
       } catch (error) {
         console.error('Error updating proposal:', error);
+        throw error;
       }
     },
     async deleteProposal({ commit }, id) {
@@ -60,6 +65,16 @@ const store = createStore({
         console.error('Error deleting proposal:', error);
       }
     },
+    async getProposal({ commit }, id) {
+      try {
+        const response = await axios.get(`${API_URL}/proposals/${id}`);
+        commit('setCurrentProposal', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching proposal:', error);
+        throw error;
+      }
+    }
   },
   getters: {
     allProposals: state => state.proposals,

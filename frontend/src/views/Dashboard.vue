@@ -67,6 +67,14 @@ const deleteProposal = async (id) => {
     console.error('Error deleting proposal:', error);
   }
 };
+
+const exportProposal = async (id) => {
+  try {
+    router.push(`/export/${id}`);
+  } catch (error) {
+    console.error('Error during export:', error);
+  }
+};
 </script>
 
 <template>
@@ -120,7 +128,13 @@ const deleteProposal = async (id) => {
                           style="margin-left: 8px;">
                           <v-icon size="small">mdi-delete</v-icon>
                         </v-btn>
-                        <v-btn icon color='success' size="small" @click.stop="" style="margin-left: 8px;">
+                        <v-btn 
+                          icon 
+                          color='success' 
+                          size="small" 
+                          @click.stop="exportProposal(proposal._id)" 
+                          style="margin-left: 8px;"
+                        >
                           <v-icon size="small">mdi-file-export</v-icon>
                         </v-btn>
                       </td>

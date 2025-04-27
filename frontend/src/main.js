@@ -12,6 +12,7 @@ import store from './store'; // Import the Vuex store
 import Dashboard from './views/Dashboard.vue';
 import Editor from './views/Editor.vue';
 import CreateProposal from './views/CreateProposal.vue';
+import ExportProposal from './views/ExportProposal.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -27,6 +28,10 @@ const router = createRouter({
     {
       path: '/proposal/edit/:id',
       component: Editor,
+    },
+    {
+      path: '/export/:id',
+      component: ExportProposal,
     },
   ],
 });

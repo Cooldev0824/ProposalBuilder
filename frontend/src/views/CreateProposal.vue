@@ -12,6 +12,9 @@ const zoom = ref(100);
 const activeTool = ref(null);
 const content = ref([]);
 const proposalId = route.params.id;
+const isPreviewMode = ref(false);
+const loading = ref(true);
+const proposal = ref(null);
 
 const tools = [
   { icon: 'mdi-format-text', label: 'Text', color: '#2196F3', action: 'addText' },
@@ -48,9 +51,9 @@ const saveContent = async () => {
     const blocksContent = await toolEditor.value.getAllBlocksContent();
     
     // Call the updateProposal API with the blocks content
-    const res = await store.dispatch('updateProposal', {
+    await store.dispatch('updateProposal', {
       id: proposalId,
-      content: blocksContent,
+      content: JSON.stringify(blocksContent)  // Convert blocks array to string for storage
     });
 
     console.log('Saved blocks:', blocksContent);
@@ -63,12 +66,27 @@ const saveContent = async () => {
 onMounted(async () => {
   if (proposalId) {
     try {
-      const proposal = await store.dispatch('getProposal', proposalId);
-      if (proposal && proposal.content) {
-        content.value = proposal.content;
+      loading.value = true;
+      const fetchedProposal = await store.dispatch('getProposal', proposalId);
+      proposal.value = fetchedProposal;
+      
+      // If there's content, parse it
+      if (fetchedProposal.content) {
+        try {
+          // Parse the stringified JSON content
+          const parsedContent = JSON.parse(fetchedProposal.content);
+          // Set the content for the ToolEditor
+          content.value = parsedContent;
+          console.log('Parsed content:', parsedContent); // For debugging
+        } catch (e) {
+          console.error('Error parsing proposal content:', e);
+          content.value = [];
+        }
       }
     } catch (error) {
       console.error('Error loading proposal:', error);
+    } finally {
+      loading.value = false;
     }
   }
 });
@@ -80,6 +98,11 @@ onMounted(async () => {
       <v-btn icon class="mr-2" size="small" @click="$router.back()" color="grey-darken-1">
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
+
+      <!-- Add proposal title -->
+      <v-toolbar-title class="text-subtitle-1">
+        {{ proposal?.title || 'Loading...' }}
+      </v-toolbar-title>
 
       <v-spacer></v-spacer>
       <v-btn-group divided class="mr-2">
@@ -100,10 +123,18 @@ onMounted(async () => {
         <v-icon size="small">mdi-fullscreen</v-icon>
       </v-btn>
       <v-spacer></v-spacer>
-      <v-btn color="primary" variant="text" size="small" class="text-none mr-2">
-        <v-icon start size="small">mdi-eye</v-icon>
-        Preview
+
+      <!-- Toggle between Preview and Edit modes -->
+      <v-btn 
+        :color="isPreviewMode ? 'primary' : 'grey'" 
+        class="text-none mr-2" 
+        size="small"
+        @click="togglePreview"
+      >
+        <v-icon start size="small">{{ isPreviewMode ? 'mdi-pencil' : 'mdi-eye' }}</v-icon>
+        {{ isPreviewMode ? 'Edit' : 'Preview' }}
       </v-btn>
+
       <v-btn color="success" class="text-none mr-2" size="small" @click="saveContent">
         <v-icon start size="small">mdi-content-save</v-icon>
         Save
@@ -111,9 +142,15 @@ onMounted(async () => {
     </v-app-bar>
 
     <v-main class="bg-grey-lighten-4">
-      <v-container fluid class="pa-0 fill-height">
+      <!-- Show loading state -->
+      <v-container v-if="loading" class="d-flex align-center justify-center" style="height: 100%">
+        <v-progress-circular indeterminate color="primary"></v-progress-circular>
+      </v-container>
+
+      <!-- Show editor when data is loaded -->
+      <v-container v-else fluid class="pa-0 fill-height">
         <v-row no-gutters class="fill-height">
-          <v-col cols="2" class="bg-white section-sidebar">
+          <v-col v-if="!isPreviewMode" cols="2" class="bg-white section-sidebar">
             <v-list density="compact" class="pa-0">
               <v-list-subheader class="text-grey-darken-1 font-weight-bold">SECTIONS</v-list-subheader>
               <v-list-item prepend-icon="mdi-file-document-outline" title="Cover" value="cover" class="rounded-0"
@@ -123,9 +160,15 @@ onMounted(async () => {
             </v-list>
           </v-col>
 
-          <v-col class="pa-4 d-flex editor-container">
+          <v-col :cols="isPreviewMode ? 12 : undefined" class="pa-4 d-flex editor-container">
             <div class="editor-wrapper">
-              <ToolEditor ref="toolEditor" v-model="content" :zoom="zoom" :action="activeTool"/>
+              <ToolEditor 
+                ref="toolEditor" 
+                v-model="content" 
+                :zoom="zoom" 
+                :action="activeTool"
+                :readonly="isPreviewMode"
+              />
             </div>
             <div class="vertical-toolbar">
               <v-tooltip v-for="tool in tools" :key="tool.label" :text="tool.label" location="left">

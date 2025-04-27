@@ -33,6 +33,19 @@ app.get('/api/proposals', async (req, res) => {
   }
 });
 
+app.get('/api/proposals/:id', async (req, res) => {
+  try {
+    const proposal = await Proposal.findById(req.params.id);
+    if (!proposal) {
+      return res.status(404).json({ error: 'Proposal not found' });
+    }
+    res.json(proposal);
+  } catch (error) {
+    console.error('Error fetching proposal:', error);
+    res.status(500).json({ error: 'Failed to fetch proposal' });
+  }
+});
+
 app.post('/api/proposalID', async (req, res) => {
   try {
     const { title, clientName } = req.body; // Destructure the fields from req.body
@@ -51,11 +64,16 @@ app.put('/api/proposals/:id', async (req, res) => {
     const proposal = await Proposal.findByIdAndUpdate(
       req.params.id,
       { 
-        content: content,
+        content: content,  // This will be the stringified blocks content
         updatedAt: Date.now()
       },
       { new: true }
     );
+    
+    if (!proposal) {
+      return res.status(404).json({ error: 'Proposal not found' });
+    }
+    
     res.status(200).json(proposal);
   } catch (error) {
     console.error('Error updating proposal:', error);
