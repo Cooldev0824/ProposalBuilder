@@ -387,7 +387,10 @@ watch(() => props.action, (newAction) => {
 }
 
 .text-block-selected {
-    border: 2px solid #1976D2;
+    border: 2px solid #2196F3;
+    box-shadow: 0 0 0 1px #2196F3, 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    /* border: 2px solid #1976D2; */
 }
 
 .selection-area {
