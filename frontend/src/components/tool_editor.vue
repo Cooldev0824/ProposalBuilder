@@ -136,7 +136,7 @@ const createEditor = (blockId) => {
             updateBlockContent(blockId, content);
         }
     });
-    
+
     editors.value.set(blockId, editor);
     return editor;
 };
@@ -151,17 +151,17 @@ onUnmounted(() => {
 
 const handleMouseDown = (e) => {
     if (props.action !== 'addText') return;
-    
+
     const isTextBlock = e.target.closest('.text-block');
     if (isTextBlock) return;
-    
+
     selectedBlockId.value = null;
-    
+
     const rect = documentPage.value.getBoundingClientRect();
     isSelecting.value = true;
     startX.value = e.clientX - rect.left;
     startY.value = e.clientY - rect.top;
-    
+
     selectionArea.value = {
         x: startX.value,
         y: startY.value,
@@ -197,12 +197,14 @@ const handleMouseUp = () => {
     const newBlock = {
         id: Date.now(),
         ...selectionArea.value,
+        isActive: true,
         content: { blocks: [] },
     };
 
     textBlocks.value.push(newBlock);
+    selectBlock(textBlocks.value[textBlocks.value.length - 1].id);
     selectionArea.value = { x: 0, y: 0, width: 0, height: 0 };
-    
+
     // Create editor after Vue updates the DOM
     nextTick(() => {
         createEditor(newBlock.id);
@@ -327,30 +329,31 @@ watch(() => props.action, (newAction) => {
 </script>
 
 <template>
-  <div class="editor-container" ref="documentPage">
-    <!-- Text Blocks -->
-    <draggable-resizable-vue 
-        v-for="block in textBlocks" 
-        :key="block.id" 
-        class="resizable-content"
-        :class="{ 'text-block-selected': selectedBlockId === block.id }" 
-        @mousedown.stop="selectBlock(block.id)"
-        :style="{
-            left: `${block.x}px`,
-            top: `${block.y}px`,
-            width: `${block.width}px`,
-            height: `${block.height}px`,
-            position: 'absolute'
-        }"
-        :draggable="!readonly"
-        :resizable="!readonly"
-        @dragstop="handleDragStop"
-        @resizestop="handleResizeStop"
-    >
-        <div class="text-block-content">
-            <div :id="`editor-${block.id}`"></div>
+    <div class="editor-container" ref="documentPage" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
+        @mouseup="handleMouseUp">
+
+        <!-- Text Blocks -->
+        <draggable-resizable-vue v-for="block in textBlocks" :key="block.id" class="resizable-content"
+            :class="{ 'text-block-selected': block.isActive }" @mousedown.stop="selectBlock(block.id)" 
+            v-model:x="block.x"
+            v-model:y="block.y" 
+            v-model:h="block.height" 
+            v-model:w="block.width" 
+            v-model:active="block.isActive"
+            handles-type="borders">
+            <div class="text-block-content">
+                <div :id="`editor-${block.id}`"></div>
+            </div>
+        </draggable-resizable-vue>
+
+        <!-- Selection Area -->
+        <div v-if="isSelecting" class="selection-area" :style="{
+            left: `${selectionArea.x}px`,
+            top: `${selectionArea.y}px`,
+            width: `${selectionArea.width}px`,
+            height: `${selectionArea.height}px`,
+        }">
         </div>
-    </draggable-resizable-vue>
     
     <!-- Selection Area -->
     <div v-if="isSelecting" class="selection-area" :style="{
@@ -392,5 +395,30 @@ watch(() => props.action, (newAction) => {
     border: 2px dashed #1976D2;
     background: rgba(25, 118, 210, 0.1);
     pointer-events: none;
+}
+
+.resizable-content {
+    position: absolute;
+    min-width: 100px;
+    min-height: 100px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border: none !important;
+    border-radius: 4px;
+    /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); */
+}
+
+:deep(.codex-editor) {
+    height: 100%;
+}
+
+:deep(.ce-block__content) {
+    max-width: none;
+    margin: 0;
+}
+
+:deep(.ce-toolbar__content) {
+    max-width: none;
+    margin: 0;
 }
 </style>
