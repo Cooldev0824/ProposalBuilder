@@ -42,6 +42,10 @@ const openProposal = (id) => {
   router.push(`/proposal/create/${id}`);
 };
 
+const openNewEditor = (id) => {
+  router.push(`/proposal/new-editor/${id}`);
+};
+
 const createNewProposal = () => {
   showModal.value = true;
 };
@@ -121,19 +125,23 @@ const exportProposal = async (id) => {
                       <td>{{ proposal.clientName }}</td>
                       <td>{{ new Date(proposal.createdAt).toLocaleDateString() }}</td>
                       <td>
-                        <v-btn icon color="primary" size="small" @click.stop="openProposal(proposal._id)">
+                        <v-btn icon color="primary" size="small" @click.stop="openProposal(proposal._id)" title="Edit with Basic Editor">
                           <v-icon size="small">mdi-pencil</v-icon>
                         </v-btn>
+                        <v-btn icon color="info" size="small" @click.stop="openNewEditor(proposal._id)" style="margin-left: 8px;" title="Edit with Advanced Editor">
+                          <v-icon size="small">mdi-pencil-ruler</v-icon>
+                        </v-btn>
                         <v-btn icon size="small" color="error" @click.stop="deleteProposal(proposal._id)"
-                          style="margin-left: 8px;">
+                          style="margin-left: 8px;" title="Delete">
                           <v-icon size="small">mdi-delete</v-icon>
                         </v-btn>
-                        <v-btn 
-                          icon 
-                          color='success' 
-                          size="small" 
-                          @click.stop="exportProposal(proposal._id)" 
+                        <v-btn
+                          icon
+                          color='success'
+                          size="small"
+                          @click.stop="exportProposal(proposal._id)"
                           style="margin-left: 8px;"
+                          title="Export to PDF"
                         >
                           <v-icon size="small">mdi-file-export</v-icon>
                         </v-btn>
