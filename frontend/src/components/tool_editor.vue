@@ -68,6 +68,7 @@ const editMode = ref(false); // Track whether we're in edit mode or move mode
 const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const contextMenuBlockId = ref(null);
+const editorHasFocus = ref(false); // Track if the editor has focus
 
 // Now add the watch after all refs are declared
 watch(() => props.modelValue, (newValue) => {
@@ -111,53 +112,53 @@ const createEditor = (blockId) => {
     if (!element) return;
 
     // Variables to track key state
-    let backspaceInterval = null;
-    let backspaceTimeout = null;
+    // let backspaceInterval = null;
+    // let backspaceTimeout = null;
 
     // Add event listeners for keydown and keyup
-    element.addEventListener('keydown', (e) => {
-      // If backspace key is pressed
-      if (e.key === 'Backspace') {
-        // Clear any existing interval/timeout
-        clearInterval(backspaceInterval);
-        clearTimeout(backspaceTimeout);
+    // element.addEventListener('keydown', (e) => {
+    //   // If backspace key is pressed
+    //   if (e.key === 'Backspace') {
+    //     // Clear any existing interval/timeout
+    //     clearInterval(backspaceInterval);
+    //     clearTimeout(backspaceTimeout);
 
-        // Set a timeout before starting continuous deletion
-        backspaceTimeout = setTimeout(() => {
-          // Start an interval to continuously trigger backspace
-          backspaceInterval = setInterval(() => {
-            // Create a new backspace key event
-            const backspaceEvent = new KeyboardEvent('keydown', {
-              key: 'Backspace',
-              code: 'Backspace',
-              keyCode: 8,
-              which: 8,
-              bubbles: true,
-              cancelable: true
-            });
+    //     // Set a timeout before starting continuous deletion
+    //     // backspaceTimeout = setTimeout(() => {
+    //     //   // Start an interval to continuously trigger backspace
+    //     //   backspaceInterval = setInterval(() => {
+    //     //     // Create a new backspace key event
+    //     //     const backspaceEvent = new KeyboardEvent('keydown', {
+    //     //       key: 'Backspace',
+    //     //       code: 'Backspace',
+    //     //       keyCode: 8,
+    //     //       which: 8,
+    //     //       bubbles: true,
+    //     //       cancelable: true
+    //     //     });
 
-            // Dispatch the event to the active element
-            document.activeElement.dispatchEvent(backspaceEvent);
-          }, 50); // Repeat every 50ms
-        }, 500); // Start after 500ms of holding
-      }
-    });
+    //     //     // Dispatch the event to the active element
+    //     //     document.activeElement.dispatchEvent(backspaceEvent);
+    //     //   }, 50); // Repeat every 50ms
+    //     // }, 500); // Start after 500ms of holding
+    //   }
+    // });
 
     // Stop the interval when key is released
-    element.addEventListener('keyup', (e) => {
-      if (e.key === 'Backspace') {
-        clearInterval(backspaceInterval);
-        clearTimeout(backspaceTimeout);
-      }
-    });
+    // element.addEventListener('keyup', (e) => {
+    //   if (e.key === 'Backspace') {
+    //     clearInterval(backspaceInterval);
+    //     clearTimeout(backspaceTimeout);
+    //   }
+    // });
   };
 
   // Apply the backspace fix after editor is ready
-  setTimeout(() => {
-    if (editorWrapper) {
-      setupBackspaceRepeat(editorWrapper);
-    }
-  }, 500);
+  // setTimeout(() => {
+  //   if (editorWrapper) {
+  //     setupBackspaceRepeat(editorWrapper);
+  //   }
+  // }, 500);
 
   const editor = new EditorJS({
     holder: `editor-${blockId}`,
@@ -245,9 +246,10 @@ const createEditor = (blockId) => {
     data: {
       blocks: []
     },
+    autofocus: true,
     onChange: async () => {
-      const content = await editor.save();
-      updateBlockContent(blockId, content);
+      // const content = await editor.save();
+      // updateBlockContent(blockId, content);
     }
   });
 
@@ -259,7 +261,7 @@ const createEditor = (blockId) => {
       const editableElements = editorContent.querySelectorAll('[contenteditable=true]');
       editableElements.forEach(el => {
         setupBackspaceRepeat(el);
-      });
+      });0
     }
   });
 
@@ -322,6 +324,7 @@ const handleKeyDown = (e) => {
   }
 
   // Handle z-index keyboard shortcuts (works in both states)
+  /*
   if (e.ctrlKey && e.shiftKey) {
     switch (e.key) {
       case 'Home': // Ctrl+Shift+Home: Bring to front
@@ -342,6 +345,7 @@ const handleKeyDown = (e) => {
         return;
     }
   }
+    */
 
   // If in editable state, don't handle arrow keys for movement
   // This allows the arrow keys to work normally for text editing
@@ -422,6 +426,42 @@ const deleteBlock = (blockId) => {
   emit('update:modelValue', textBlocks.value);
 };
 
+// Handle clicks on the document
+const handleDocumentClick = (e) => {
+  // Handle context menu closing
+  if (showContextMenu.value) {
+    const contextMenuElement = document.querySelector('.context-menu');
+    if (contextMenuElement && !contextMenuElement.contains(e.target)) {
+      closeContextMenu();
+    }
+  }
+
+  // Handle editor focus
+  if (editMode.value && selectedBlockId.value) {
+    // Check if the click was inside the current editor
+    const editorElement = document.getElementById(`editor-${selectedBlockId.value}`);
+    const blockElement = editorElement?.closest('.resizable-content');
+
+    // If click was outside the editor and its parent block
+    if (editorElement && blockElement &&
+      !editorElement.contains(e.target) &&
+      !blockElement.contains(e.target)) {
+
+      // If click was on another block, don't do anything (let that block's click handler work)
+      const clickedOnAnotherBlock = e.target.closest('.resizable-content');
+      if (clickedOnAnotherBlock) {
+        return;
+      }
+
+      // If click was outside any block, refocus the current editor
+      if (editMode.value) {
+        e.preventDefault();
+        focusEditor(selectedBlockId.value);
+      }
+    }
+  }
+};
+
 // Initialize dimensions when mounted
 onMounted(() => {
   updateContainerDimensions();
@@ -438,20 +478,14 @@ onMounted(() => {
   // Add keyboard event listener for arrow keys
   document.addEventListener('keydown', handleKeyDown);
 
-  // Add click handler to close context menu when clicking outside
-  document.addEventListener('click', (e) => {
-    if (showContextMenu.value) {
-      const contextMenuElement = document.querySelector('.context-menu');
-      if (contextMenuElement && !contextMenuElement.contains(e.target)) {
-        closeContextMenu();
-      }
-    }
-  });
+  // Add click handler for document
+  document.addEventListener('click', handleDocumentClick, true); // Use capture phase
 
   // Clean up observer and event listeners on unmount
   onUnmounted(() => {
     resizeObserver.disconnect();
     document.removeEventListener('keydown', handleKeyDown);
+    document.removeEventListener('click', handleDocumentClick, true);
     document.removeEventListener('click', closeContextMenu);
     document.removeEventListener('contextmenu', closeContextMenu);
   });
@@ -643,8 +677,8 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
 
             case 'image':
               if (contentBlock.data.url) {
-                htmlContent += `<img src="${contentBlock.data.url}" 
-                  style="max-width: 100%; margin: 10px 0;" 
+                htmlContent += `<img src="${contentBlock.data.url}"
+                  style="max-width: 100%; margin: 10px 0;"
                   alt="${contentBlock.data.caption || ''}" />`;
               }
               break;
@@ -714,11 +748,59 @@ const selectBlock = (id) => {
   // If the block is already selected, toggle edit mode
   if (selectedBlockId.value === id) {
     editMode.value = true; // Second click always enters edit mode
+
+    // Focus the editor after entering edit mode
+    nextTick(() => {
+      focusEditor(id);
+    });
   } else {
     // If selecting a different block, select it and set to locked/move mode
     selectedBlockId.value = id;
     editMode.value = false; // First click always enters locked/move mode
   }
+};
+
+// Function to focus the editor
+const focusEditor = (blockId) => {
+  if (!blockId) return;
+
+  // Get the editor instance
+  const editor = editors.value.get(blockId);
+  if (!editor) return;
+
+  // Focus the editor
+  nextTick(() => {
+    try {
+      // Find the editable element within the editor
+      const editorElement = document.getElementById(`editor-${blockId}`);
+      if (editorElement) {
+        // Find the first editable element and focus it
+        const editableElement = editorElement.querySelector('[contenteditable=true]');
+        if (editableElement) {
+          editableElement.focus();
+          editorHasFocus.value = true;
+
+          // Place cursor at the end of the text
+          const range = document.createRange();
+          const selection = window.getSelection();
+
+          // If there's text content, place cursor at the end
+          if (editableElement.childNodes.length > 0) {
+            const lastNode = editableElement.childNodes[editableElement.childNodes.length - 1];
+            range.setStartAfter(lastNode);
+          } else {
+            range.selectNodeContents(editableElement);
+            range.collapse(false); // Collapse to end
+          }
+
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+    } catch (error) {
+      console.error('Error focusing editor:', error);
+    }
+  });
 };
 
 // Get position text for the selected block
@@ -920,6 +1002,8 @@ const handleContextMenuAction = (action) => {
     case 'edit':
       // Set edit mode to true
       editMode.value = true;
+      // Focus the editor
+      focusEditor(contextMenuBlockId.value);
       break;
     case 'delete':
       // Delete the block
@@ -963,8 +1047,8 @@ const alignBlocksToGuides = (guides) => {
         block.y = guidePos - block.height;
       }
       // Check if center is close to guide
-      else if (Math.abs(block.y + block.height/2 - guidePos) < 10) {
-        block.y = guidePos - block.height/2;
+      else if (Math.abs(block.y + block.height / 2 - guidePos) < 10) {
+        block.y = guidePos - block.height / 2;
       }
     });
   }
@@ -981,8 +1065,8 @@ const alignBlocksToGuides = (guides) => {
         block.x = guidePos - block.width;
       }
       // Check if center is close to guide
-      else if (Math.abs(block.x + block.width/2 - guidePos) < 10) {
-        block.x = guidePos - block.width/2;
+      else if (Math.abs(block.x + block.width / 2 - guidePos) < 10) {
+        block.x = guidePos - block.width / 2;
       }
     });
   }
@@ -1000,89 +1084,70 @@ watch(() => props.action, (newAction) => {
 </script>
 
 <template>
-  <div class="editor-container" 
-       ref="documentPage" 
-       @mousedown="handleMouseDown" 
-       @mousemove="handleMouseMove"
-       @mouseup="handleMouseUp"
-       :style="{
-         backgroundImage: props.background ? `url(${props.background})` : 'none',
-         backgroundSize: 'cover',
-         backgroundPosition: 'center',
-         backgroundRepeat: 'no-repeat'
-       }"
-  >
+  <div class="editor-container" ref="documentPage" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
+    @mouseup="handleMouseUp" :style="{
+      backgroundImage: props.background ? `url(${props.background})` : 'none',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    }">
     <!-- Text Blocks -->
-    <div
-      v-for="block in textBlocks"
-      :key="block.id"
-      class="block-wrapper"
-      :style="{ 'z-index': block.zIndex || 0 }">
-      <draggable-resizable-vue
-        class="resizable-content"
-        :class="{
-          'text-block-selected': block.id == selectedBlockId,
-          'editable-state': editMode && block.id == selectedBlockId,
-          'locked-state': !editMode && block.id == selectedBlockId
-        }"
-        @mousedown.stop="selectBlock(block.id)"
-        @contextmenu.prevent="openContextMenu($event, block.id)"
-        v-model:x="block.x"
-        v-model:y="block.y"
-        v-model:h="block.height"
-        v-model:w="block.width"
-        v-model:active="block.isActive"
-        :grid="props.showGrid ? [getGridSize(), getGridSize()] : [1, 1]"
-        :snap="props.showGrid"
-        :draggable="!editMode || block.id != selectedBlockId"
-        :resizable="!editMode || block.id != selectedBlockId"
-        @dragstop="handleBlockMoved(block)"
-        @resizestop="handleBlockResized(block)"
-        handles-type="borders">
-      <div class="text-block-content">
-        <div :id="`editor-${block.id}`"></div>
-      </div>
-
-      <!-- Mode Indicator -->
-      <div v-if="block.id == selectedBlockId && !props.readonly" class="mode-indicator">
-        {{ editMode ? 'Editable State' : 'Locked State' }}
-      </div>
-
-      <!-- Z-Index Controls -->
-      <div v-if="block.id == selectedBlockId && !props.readonly" class="block-controls">
-        <!-- Bring to Front -->
-        <div class="block-control-btn bring-to-front" @click.stop="bringBlockToFront()">
-          <span class="material-icons">vertical_align_top</span>
-          <span class="tooltip">Bring to Front</span>
+    <div v-for="block in textBlocks" :key="block.id" class="block-wrapper" :style="{ 'z-index': block.zIndex || 0 }">
+      <draggable-resizable-vue class="resizable-content" :class="{
+        'text-block-selected': block.id == selectedBlockId,
+        'editable-state': editMode && block.id == selectedBlockId,
+        'locked-state': !editMode && block.id == selectedBlockId
+      }" @mousedown.stop="selectBlock(block.id)" @contextmenu.prevent="openContextMenu($event, block.id)"
+        v-model:x="block.x" v-model:y="block.y" v-model:h="block.height" v-model:w="block.width"
+        v-model:active="block.isActive" :grid="props.showGrid ? [getGridSize(), getGridSize()] : [1, 1]"
+        :snap="props.showGrid" :draggable="!editMode || block.id != selectedBlockId"
+        :resizable="true" @dragstop="handleBlockMoved(block)"
+        @resizestop="handleBlockResized(block)" handles-type="borders">
+        <div class="text-block-content">
+          <div :id="`editor-${block.id}`"></div>
         </div>
 
-        <!-- Move Forward -->
-        <div class="block-control-btn move-forward" @click.stop="moveBlockForward()">
-          <span class="material-icons">arrow_upward</span>
-          <span class="tooltip">Move Forward</span>
+        <!-- Mode Indicator -->
+        <div v-if="block.id == selectedBlockId && !props.readonly" class="mode-indicator">
+          {{ editMode ? 'Editable State (Edit & Resize)' : 'Locked State (Move & Resize)' }}
         </div>
 
-        <!-- Move Backward -->
-        <div class="block-control-btn move-backward" @click.stop="moveBlockBackward()">
-          <span class="material-icons">arrow_downward</span>
-          <span class="tooltip">Move Backward</span>
+        <!-- Z-Index Controls -->
+        <div v-if="block.id == selectedBlockId && !props.readonly" class="block-controls">
+          <!-- Bring to Front -->
+          <div class="block-control-btn bring-to-front" @click.stop="bringBlockToFront()">
+            <span class="material-icons">vertical_align_top</span>
+            <span class="tooltip">Bring to Front</span>
+          </div>
+
+          <!-- Move Forward -->
+          <div class="block-control-btn move-forward" @click.stop="moveBlockForward()">
+            <span class="material-icons">arrow_upward</span>
+            <span class="tooltip">Move Forward</span>
+          </div>
+
+          <!-- Move Backward -->
+          <div class="block-control-btn move-backward" @click.stop="moveBlockBackward()">
+            <span class="material-icons">arrow_downward</span>
+            <span class="tooltip">Move Backward</span>
+          </div>
+
+          <!-- Send to Back -->
+          <div class="block-control-btn send-to-back" @click.stop="sendBlockToBack()">
+            <span class="material-icons">vertical_align_bottom</span>
+            <span class="tooltip">Send to Back</span>
+          </div>
         </div>
 
-        <!-- Send to Back -->
-        <div class="block-control-btn send-to-back" @click.stop="sendBlockToBack()">
-          <span class="material-icons">vertical_align_bottom</span>
-          <span class="tooltip">Send to Back</span>
+        <!-- This section intentionally left empty -->
+
+        <!-- This section intentionally left empty -->
+
+        <!-- Delete Button -->
+        <div v-if="block.id == selectedBlockId && !props.readonly" class="block-delete-btn"
+          @click.stop="deleteBlock(block.id)">
+          <span class="material-icons">close</span>
         </div>
-      </div>
-
-      <!-- This section intentionally left empty -->
-
-      <!-- This section intentionally left empty -->
-
-      <!-- Delete Button -->
-      <div v-if="block.id == selectedBlockId && !props.readonly" class="block-delete-btn" @click.stop="deleteBlock(block.id)">
-        <span class="material-icons">close</span>
-      </div>
       </draggable-resizable-vue>
     </div>
 
@@ -1104,16 +1169,9 @@ watch(() => props.action, (newAction) => {
     }"></div>
 
     <!-- Ruler Component -->
-    <EditorRuler
-      v-if="!props.readonly"
-      v-model:showGrid="props.showGrid"
-      :zoom="props.zoom"
-      :containerWidth="containerWidth"
-      :containerHeight="containerHeight"
-      :gridSize="getGridSize()"
-      :blocks="textBlocks"
-      @alignBlocks="alignBlocksToGuides"
-    />
+    <EditorRuler v-if="!props.readonly" v-model:showGrid="props.showGrid" :zoom="props.zoom"
+      :containerWidth="containerWidth" :containerHeight="containerHeight" :gridSize="getGridSize()" :blocks="textBlocks"
+      @alignBlocks="alignBlocksToGuides" />
 
     <!-- Position Indicators -->
     <div v-if="selectedBlockId && !props.readonly" class="position-indicator block-position">
@@ -1129,7 +1187,7 @@ watch(() => props.action, (newAction) => {
 
     <!-- Mouse Position Indicator -->
     <div v-if="!props.readonly" class="position-indicator mouse-position">
-      X: {{ mousePosition.x }}px  Y: {{ mousePosition.y }}px
+      X: {{ mousePosition.x }}px Y: {{ mousePosition.y }}px
     </div>
 
     <!-- Keyboard Shortcuts Help -->
@@ -1140,11 +1198,11 @@ watch(() => props.action, (newAction) => {
           <div class="tooltip-title">Keyboard Shortcuts</div>
           <div class="shortcut-item">
             <span class="key">First Click</span>
-            <span>Locked State (Move Only)</span>
+            <span>Locked State (Move & Resize)</span>
           </div>
           <div class="shortcut-item">
             <span class="key">Second Click</span>
-            <span>Editable State (Edit Only)</span>
+            <span>Editable State (Edit & Resize)</span>
           </div>
           <div class="shortcut-item">
             <span class="key">↑ ↓ ← →</span>
@@ -1183,7 +1241,8 @@ watch(() => props.action, (newAction) => {
     </div>
 
     <!-- Context Menu -->
-    <div v-if="showContextMenu" class="context-menu" :style="{ left: `${contextMenuPosition.x}px`, top: `${contextMenuPosition.y}px` }">
+    <div v-if="showContextMenu" class="context-menu"
+      :style="{ left: `${contextMenuPosition.x}px`, top: `${contextMenuPosition.y}px` }">
       <div class="context-menu-item" @click="handleContextMenuAction('edit')">
         <span class="material-icons">edit</span>
         <span>Edit Content</span>
@@ -1225,6 +1284,7 @@ watch(() => props.action, (newAction) => {
   height: 100%;
   min-height: 800px;
   background: white;
+
   /* Add a semi-transparent overlay */
   &::before {
     content: '';
@@ -1239,11 +1299,16 @@ watch(() => props.action, (newAction) => {
 }
 
 .resizable-content {
-  position: relative; /* Change to relative */
-  z-index: 1; /* Ensure blocks appear above the background */
-  background: rgba(255, 255, 255, 0.9); /* Semi-transparent background */
-  padding-top: 25px;  /* Space for horizontal ruler */
-  padding-left: 25px; /* Space for vertical ruler */
+  position: relative;
+  /* Change to relative */
+  z-index: 1;
+  /* Ensure blocks appear above the background */
+  background: rgba(255, 255, 255, 0.9);
+  /* Semi-transparent background */
+  padding-top: 25px;
+  /* Space for horizontal ruler */
+  padding-left: 25px;
+  /* Space for vertical ruler */
 }
 
 .block-wrapper {
@@ -1318,7 +1383,8 @@ watch(() => props.action, (newAction) => {
 }
 
 .mouse-position {
-  top: 35px; /* Below the horizontal ruler */
+  top: 35px;
+  /* Below the horizontal ruler */
   right: 10px;
 }
 
@@ -1575,6 +1641,37 @@ watch(() => props.action, (newAction) => {
   border: 2px solid #4CAF50 !important;
   box-shadow: 0 0 0 1px #4CAF50, 0 2px 4px rgba(0, 0, 0, 0.1) !important;
   cursor: text !important;
+}
+
+/* Style for editable elements to make them more visible */
+.editable-state [contenteditable=true] {
+  outline: none;
+  min-height: 1em;
+  padding: 2px;
+}
+
+.editable-state [contenteditable=true]:focus {
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+/* Show resize handles in editable state */
+.editable-state :deep(.handle) {
+  background-color: #4CAF50 !important;
+  border-color: #4CAF50 !important;
+}
+
+/* Add a hint about resizability */
+.editable-state::after {
+  content: 'Resize ↔';
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 10px;
+  color: #4CAF50;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 2px 4px;
+  border-radius: 2px;
+  pointer-events: none;
 }
 
 /* Locked state styles */
