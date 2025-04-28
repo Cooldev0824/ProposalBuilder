@@ -611,6 +611,12 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
   try {
     console.log('Starting PDF export...'); // Debug log
 
+    // Get all blocks content
+    const blocksContent = await getAllBlocksContent();
+
+    // Log the content for debugging
+    console.log('Blocks content for PDF:', JSON.stringify(blocksContent.slice(0, 1), null, 2));
+
     // Create a container for the PDF content
     const element = document.createElement('div');
     // Set the container to A4 size in pixels (roughly 210mm x 297mm at 96 DPI)
@@ -619,14 +625,26 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     element.style.position = 'relative';
     element.style.margin = '0';
     element.style.padding = '20px';
+    element.style.fontFamily = 'Arial, sans-serif';
+    element.style.color = '#333';
+    element.style.boxSizing = 'border-box';
+    element.style.overflow = 'hidden';
 
     // Add background if it exists
     if (props.background) {
-      // Set background directly on the main container
-      element.style.backgroundImage = `url(${props.background})`;
-      element.style.backgroundSize = 'cover';
-      element.style.backgroundPosition = 'center';
-      element.style.backgroundRepeat = 'no-repeat';
+      // Create a background container that fits exactly one page
+      const bgContainer = document.createElement('div');
+      bgContainer.style.position = 'absolute';
+      bgContainer.style.top = '0';
+      bgContainer.style.left = '0';
+      bgContainer.style.width = '100%';
+      bgContainer.style.height = '100%';
+      bgContainer.style.backgroundImage = `url(${props.background})`;
+      bgContainer.style.backgroundSize = 'cover';
+      bgContainer.style.backgroundPosition = 'center';
+      bgContainer.style.backgroundRepeat = 'no-repeat';
+      bgContainer.style.zIndex = '0';
+      element.appendChild(bgContainer);
     }
 
     // Create a semi-transparent overlay to make content more readable
@@ -645,63 +663,348 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     contentDiv.style.zIndex = '2';
     contentDiv.style.padding = '20px';
 
-    // Build the HTML content
-    let htmlContent = `
-      <div style="font-family: Arial, sans-serif;">
-        <h1 style="font-size: 24px; margin-bottom: 20px; color: #333;">${proposalTitle}</h1>
-    `;
+    // Create a container for the content that preserves absolute positioning
+    const contentContainer = document.createElement('div');
+    contentContainer.style.position = 'relative';
+    contentContainer.style.width = '100%';
+    contentContainer.style.height = '100%';
+    contentContainer.style.zIndex = '2';
 
-    // Process each block in the modelValue array
-    for (const block of props.modelValue) {
+    // Add title at the top
+    const titleElement = document.createElement('h1');
+    titleElement.textContent = proposalTitle;
+    titleElement.style.fontSize = '24px';
+    titleElement.style.marginBottom = '20px';
+    titleElement.style.color = '#333';
+    titleElement.style.textAlign = 'center';
+    titleElement.style.position = 'relative';
+    titleElement.style.zIndex = '2';
+    contentContainer.appendChild(titleElement);
+
+    // Process each block in the blocksContent array with absolute positioning
+    for (const block of blocksContent) {
       if (block.content && block.content.blocks) {
+        // Create a container div for this block with absolute positioning
+        const blockDiv = document.createElement('div');
+        blockDiv.style.position = 'absolute';
+        blockDiv.style.left = `${block.x}px`;
+        blockDiv.style.top = `${block.y}px`;
+        blockDiv.style.width = `${block.width}px`;
+        blockDiv.style.minHeight = `${block.height}px`;
+        blockDiv.style.zIndex = block.zIndex || 0;
+        blockDiv.style.boxSizing = 'border-box';
+        blockDiv.style.padding = '10px';
+        blockDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+        blockDiv.style.borderRadius = '4px';
+        blockDiv.style.overflow = 'hidden';
+
+        // Create a div to hold the block content
+        const blockContent = document.createElement('div');
+
         for (const contentBlock of block.content.blocks) {
-          switch (contentBlock.type) {
-            case 'header':
-              htmlContent += `<h${contentBlock.data.level || 2} style="margin: 15px 0; color: #333;">
-                ${contentBlock.data.text}
-              </h${contentBlock.data.level || 2}>`;
-              break;
+          try {
+            let contentElement;
 
-            case 'paragraph':
-              htmlContent += `<p style="margin: 10px 0; line-height: 1.6;">
-                ${contentBlock.data.text}
-              </p>`;
-              break;
+            switch (contentBlock.type) {
+              case 'header':
+                const level = contentBlock.data.level || 2;
+                const headerText = typeof contentBlock.data.text === 'string'
+                  ? contentBlock.data.text
+                  : 'Header';
 
-            case 'list':
-              const listType = contentBlock.data.style === 'ordered' ? 'ol' : 'ul';
-              htmlContent += `<${listType} style="margin: 10px 0; padding-left: 20px;">
-                ${contentBlock.data.items.map(item => `<li>${item}</li>`).join('')}
-              </${listType}>`;
-              break;
+                contentElement = document.createElement(`h${level}`);
+                contentElement.innerHTML = headerText;
+                contentElement.style.margin = '5px 0';
+                contentElement.style.color = '#333';
+                contentElement.style.fontWeight = 'bold';
 
-            case 'image':
-              if (contentBlock.data.url) {
-                htmlContent += `<img src="${contentBlock.data.url}"
-                  style="max-width: 100%; margin: 10px 0;"
-                  alt="${contentBlock.data.caption || ''}" />`;
-              }
-              break;
+                // Style headers based on level
+                switch (level) {
+                  case 1: contentElement.style.fontSize = '22px'; break;
+                  case 2: contentElement.style.fontSize = '20px'; break;
+                  case 3: contentElement.style.fontSize = '18px'; break;
+                  case 4: contentElement.style.fontSize = '16px'; break;
+                  case 5: contentElement.style.fontSize = '14px'; break;
+                  case 6: contentElement.style.fontSize = '12px'; break;
+                }
+                break;
+
+              case 'paragraph':
+                const paragraphText = typeof contentBlock.data.text === 'string'
+                  ? contentBlock.data.text
+                  : '';
+
+                contentElement = document.createElement('p');
+                contentElement.innerHTML = paragraphText;
+                contentElement.style.margin = '5px 0';
+                contentElement.style.lineHeight = '1.4';
+                contentElement.style.fontSize = '14px';
+                break;
+
+              case 'list':
+                const listType = contentBlock.data.style === 'ordered' ? 'ol' : 'ul';
+                contentElement = document.createElement(listType);
+                contentElement.style.margin = '5px 0';
+                contentElement.style.paddingLeft = '20px';
+
+                if (Array.isArray(contentBlock.data.items)) {
+                  contentBlock.data.items.forEach(item => {
+                    const li = document.createElement('li');
+
+                    if (typeof item === 'string') {
+                      li.innerHTML = item;
+                    } else if (item && typeof item === 'object') {
+                      // Extract text content from object if possible
+                      if (item.content) {
+                        li.innerHTML = item.content;
+                      } else if (item.text) {
+                        li.innerHTML = item.text;
+                      } else {
+                        // Try to find any string property to display
+                        const stringProps = Object.entries(item)
+                          .filter(([_, val]) => typeof val === 'string')
+                          .map(([_, val]) => val);
+
+                        if (stringProps.length > 0) {
+                          li.innerHTML = stringProps.join(' ');
+                        } else {
+                          li.innerHTML = 'List item';
+                        }
+                      }
+                    }
+
+                    li.style.margin = '3px 0';
+                    li.style.fontSize = '14px';
+                    contentElement.appendChild(li);
+                  });
+                }
+                break;
+
+              case 'table':
+                if (contentBlock.data && Array.isArray(contentBlock.data.content)) {
+                  contentElement = document.createElement('table');
+                  contentElement.style.width = '100%';
+                  contentElement.style.borderCollapse = 'collapse';
+                  contentElement.style.margin = '5px 0';
+
+                  contentBlock.data.content.forEach(row => {
+                    if (Array.isArray(row)) {
+                      const tr = document.createElement('tr');
+
+                      row.forEach(cell => {
+                        const td = document.createElement('td');
+
+                        if (typeof cell === 'string') {
+                          td.innerHTML = cell;
+                        } else if (cell && typeof cell === 'object') {
+                          // Extract text content from object if possible
+                          if (cell.content) {
+                            td.innerHTML = cell.content;
+                          } else if (cell.text) {
+                            td.innerHTML = cell.text;
+                          } else {
+                            // Try to find any string property to display
+                            const stringProps = Object.entries(cell)
+                              .filter(([_, val]) => typeof val === 'string')
+                              .map(([_, val]) => val);
+
+                            if (stringProps.length > 0) {
+                              td.innerHTML = stringProps.join(' ');
+                            }
+                          }
+                        } else if (cell !== null && cell !== undefined) {
+                          td.innerHTML = String(cell);
+                        }
+
+                        td.style.border = '1px solid #ddd';
+                        td.style.padding = '4px';
+                        td.style.fontSize = '12px';
+                        tr.appendChild(td);
+                      });
+
+                      contentElement.appendChild(tr);
+                    }
+                  });
+                }
+                break;
+
+              case 'quote':
+                contentElement = document.createElement('blockquote');
+                contentElement.style.borderLeft = '3px solid #ccc';
+                contentElement.style.margin = '5px 0';
+                contentElement.style.padding = '5px 10px';
+                contentElement.style.fontStyle = 'italic';
+                contentElement.style.color = '#555';
+
+                const quoteText = typeof contentBlock.data.text === 'string'
+                  ? contentBlock.data.text
+                  : '';
+
+                const quoteP = document.createElement('p');
+                quoteP.innerHTML = quoteText;
+                quoteP.style.margin = '0 0 5px 0';
+                quoteP.style.fontSize = '14px';
+                contentElement.appendChild(quoteP);
+
+                if (contentBlock.data.caption) {
+                  const captionText = typeof contentBlock.data.caption === 'string'
+                    ? contentBlock.data.caption
+                    : '';
+
+                  const footer = document.createElement('footer');
+                  footer.innerHTML = captionText;
+                  footer.style.fontSize = '12px';
+                  footer.style.textAlign = 'right';
+                  contentElement.appendChild(footer);
+                }
+                break;
+
+              case 'image':
+                if (contentBlock.data && contentBlock.data.url) {
+                  contentElement = document.createElement('figure');
+                  contentElement.style.margin = '5px 0';
+                  contentElement.style.textAlign = 'center';
+
+                  const img = document.createElement('img');
+                  img.src = contentBlock.data.url;
+                  img.alt = contentBlock.data.caption || '';
+                  img.style.maxWidth = '100%';
+                  img.style.height = 'auto';
+                  img.style.display = 'block';
+                  img.style.margin = '0 auto';
+                  contentElement.appendChild(img);
+
+                  if (contentBlock.data.caption) {
+                    const captionText = typeof contentBlock.data.caption === 'string'
+                      ? contentBlock.data.caption
+                      : '';
+
+                    const figcaption = document.createElement('figcaption');
+                    figcaption.textContent = captionText;
+                    figcaption.style.fontSize = '12px';
+                    figcaption.style.color = '#666';
+                    figcaption.style.marginTop = '3px';
+                    contentElement.appendChild(figcaption);
+                  }
+                }
+                break;
+
+              case 'delimiter':
+                contentElement = document.createElement('hr');
+                contentElement.style.margin = '10px 0';
+                contentElement.style.border = 'none';
+                contentElement.style.borderTop = '1px solid #eee';
+                break;
+
+              case 'checklist':
+                if (contentBlock.data && Array.isArray(contentBlock.data.items)) {
+                  contentElement = document.createElement('div');
+                  contentElement.style.margin = '5px 0';
+
+                  contentBlock.data.items.forEach(item => {
+                    if (item && typeof item === 'object') {
+                      const checkboxColor = item.checked ? '#4CAF50' : 'transparent';
+                      const checkmark = item.checked ? '✓' : '';
+
+                      // Extract text content from the item
+                      let itemText = '';
+                      if (typeof item.text === 'string') {
+                        itemText = item.text;
+                      } else if (item.text && typeof item.text === 'object') {
+                        // Handle nested object
+                        if (item.text.content) {
+                          itemText = item.text.content;
+                        } else {
+                          // Try to find any string property to display
+                          const stringProps = Object.entries(item.text)
+                            .filter(([_, val]) => typeof val === 'string')
+                            .map(([_, val]) => val);
+
+                          if (stringProps.length > 0) {
+                            itemText = stringProps.join(' ');
+                          }
+                        }
+                      } else if (item.content) {
+                        itemText = item.content;
+                      }
+
+                      const checkItem = document.createElement('div');
+                      checkItem.style.display = 'flex';
+                      checkItem.style.alignItems = 'center';
+                      checkItem.style.margin = '3px 0';
+
+                      const checkbox = document.createElement('div');
+                      checkbox.style.width = '14px';
+                      checkbox.style.height = '14px';
+                      checkbox.style.border = '1px solid #999';
+                      checkbox.style.borderRadius = '3px';
+                      checkbox.style.marginRight = '6px';
+                      checkbox.style.position = 'relative';
+                      checkbox.style.backgroundColor = checkboxColor;
+                      checkbox.style.display = 'flex';
+                      checkbox.style.alignItems = 'center';
+                      checkbox.style.justifyContent = 'center';
+                      checkbox.style.color = 'white';
+                      checkbox.innerHTML = checkmark;
+
+                      const text = document.createElement('div');
+                      text.innerHTML = itemText;
+                      text.style.fontSize = '14px';
+
+                      checkItem.appendChild(checkbox);
+                      checkItem.appendChild(text);
+                      contentElement.appendChild(checkItem);
+                    }
+                  });
+                }
+                break;
+
+              default:
+                // For unsupported block types
+                contentElement = document.createElement('p');
+                contentElement.textContent = `Unsupported content type: ${contentBlock.type}`;
+                contentElement.style.color = '#999';
+                contentElement.style.fontStyle = 'italic';
+                contentElement.style.margin = '5px 0';
+                contentElement.style.fontSize = '12px';
+            }
+
+            if (contentElement) {
+              blockContent.appendChild(contentElement);
+            }
+          } catch (blockError) {
+            console.error('Error processing block:', blockError, contentBlock);
+            const errorElement = document.createElement('p');
+            errorElement.textContent = 'Error processing content';
+            errorElement.style.color = 'red';
+            errorElement.style.margin = '5px 0';
+            blockContent.appendChild(errorElement);
           }
         }
+
+        // Add the block content to the block div
+        blockDiv.appendChild(blockContent);
+
+        // Add the block div to the content container
+        contentContainer.appendChild(blockDiv);
       }
     }
 
-    htmlContent += '</div>';
-    contentDiv.innerHTML = htmlContent;
+    // Add the content container to the main element
+    contentDiv.appendChild(contentContainer);
     element.appendChild(contentDiv);
 
     // Add element to document temporarily
     document.body.appendChild(element);
 
     const opt = {
-      margin: 0, // Remove margins
+      margin: 10, // Add some margins (in mm)
       filename: `${proposalTitle}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 2,
+        scale: 2, // Higher scale for better quality
         useCORS: true,
-        logging: false,
+        logging: true, // Enable logging for debugging
         allowTaint: true,
         backgroundColor: null,
         width: element.offsetWidth,
@@ -711,7 +1014,8 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
         unit: 'mm',
         format: 'a4',
         orientation: 'portrait'
-      }
+      },
+      pagebreak: { mode: ['avoid-all'] }
     };
 
     // Generate PDF
