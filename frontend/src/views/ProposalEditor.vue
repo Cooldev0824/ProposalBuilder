@@ -1,13 +1,14 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter, useRoute } from 'vue-router';
-import ToolEditor from '../components/tool_editor.vue';
+import ProposalEditor from '../components/proposal_editor.vue';
+import { getTemplateByName, getTemplateNames } from '../utils/proposal-templates';
 
 const store = useStore();
 const router = useRouter();
 const route = useRoute();
-const toolEditor = ref(null);
+const proposalEditor = ref(null);
 const zoom = ref(100);
 const activeTool = ref(null);
 const content = ref([]);
@@ -15,7 +16,9 @@ const proposalId = route.params.id;
 const isPreviewMode = ref(false);
 const loading = ref(true);
 const proposal = ref(null);
-const showGrid = ref(true); // Set to true by default to show the ruler
+const showTemplateDialog = ref(false);
+const templates = ref(getTemplateNames());
+const selectedTemplate = ref(null);
 
 const tools = [
   { icon: 'mdi-format-text', label: 'Text', color: '#2196F3', action: 'addText' },
@@ -41,10 +44,6 @@ const decreaseZoom = () => {
   if (zoom.value > 25) zoom.value -= 25;
 };
 
-const toggleGrid = () => {
-  showGrid.value = !showGrid.value;
-};
-
 const togglePreview = () => {
   isPreviewMode.value = !isPreviewMode.value;
 };
@@ -56,20 +55,51 @@ const saveContent = async () => {
       return;
     }
 
-    // Get all blocks content from the ToolEditor component
-    const blocksContent = await toolEditor.value.getAllBlocksContent();
-
-    // Call the updateProposal API with the blocks content
+    // First, save the current section content
+    await proposalEditor.value.saveCurrentSectionContent();
+    
+    // Get all content from all sections
+    const allContent = await proposalEditor.value.getAllContent();
+    
+    // Call the updateProposal API with the content
     await store.dispatch('updateProposal', {
       id: proposalId,
-      content: JSON.stringify(blocksContent)  // Convert blocks array to string for storage
+      content: JSON.stringify(allContent)  // Convert content array to string for storage
     });
 
-    console.log('Saved blocks:', blocksContent);
+    console.log('Saved proposal content:', allContent);
     router.push('/');
   } catch (error) {
     console.error('Error saving content:', error);
   }
+};
+
+const exportProposal = async () => {
+  try {
+    if (!proposalEditor.value) {
+      console.error('Proposal editor not available');
+      return;
+    }
+    
+    await proposalEditor.value.exportToPDF(proposal.value?.title || 'proposal');
+  } catch (error) {
+    console.error('Error exporting proposal:', error);
+  }
+};
+
+const applyTemplate = () => {
+  if (!selectedTemplate.value) return;
+  
+  const template = getTemplateByName(selectedTemplate.value);
+  
+  // Flatten all section content into a single array for the editor
+  const allContent = [];
+  Object.entries(template.content).forEach(([sectionId, sectionContent]) => {
+    allContent.push(...sectionContent);
+  });
+  
+  content.value = allContent;
+  showTemplateDialog.value = false;
 };
 
 onMounted(async () => {
@@ -78,19 +108,24 @@ onMounted(async () => {
       loading.value = true;
       const fetchedProposal = await store.dispatch('getProposal', proposalId);
       proposal.value = fetchedProposal;
-
+      
       // If there's content, parse it
       if (fetchedProposal.content) {
         try {
           // Parse the stringified JSON content
           const parsedContent = JSON.parse(fetchedProposal.content);
-          // Set the content for the ToolEditor
+          // Set the content for the ProposalEditor
           content.value = parsedContent;
           console.log('Parsed content:', parsedContent); // For debugging
         } catch (e) {
           console.error('Error parsing proposal content:', e);
           content.value = [];
+          // Show template dialog if no content
+          showTemplateDialog.value = true;
         }
+      } else {
+        // Show template dialog if no content
+        showTemplateDialog.value = true;
       }
     } catch (error) {
       console.error('Error loading proposal:', error);
@@ -108,7 +143,7 @@ onMounted(async () => {
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
 
-      <!-- Add proposal title -->
+      <!-- Proposal title -->
       <v-toolbar-title class="text-subtitle-1">
         {{ proposal?.title || 'Loading...' }}
       </v-toolbar-title>
@@ -125,24 +160,32 @@ onMounted(async () => {
           <v-icon size="small" color="grey-darken-1">mdi-magnify-plus-outline</v-icon>
         </v-btn>
       </v-btn-group>
-      <v-btn icon size="small" :color="showGrid ? 'primary' : 'grey-darken-1'" class="mr-2" @click="toggleGrid">
-        <v-icon size="small">mdi-view-grid-outline</v-icon>
-        <v-tooltip activator="parent" location="bottom">{{ showGrid ? 'Hide Grid' : 'Show Grid' }}</v-tooltip>
+      
+      <v-btn icon size="small" color="grey-darken-1" class="mr-2" @click="showTemplateDialog = true">
+        <v-icon size="small">mdi-file-document-plus-outline</v-icon>
+        <v-tooltip activator="parent" location="bottom">Apply Template</v-tooltip>
       </v-btn>
+      
       <v-btn icon size="small" color="grey-darken-1">
         <v-icon size="small">mdi-fullscreen</v-icon>
       </v-btn>
+      
       <v-spacer></v-spacer>
 
       <!-- Toggle between Preview and Edit modes -->
-      <v-btn
-        :color="isPreviewMode ? 'primary' : 'grey'"
-        class="text-none mr-2"
+      <v-btn 
+        :color="isPreviewMode ? 'primary' : 'grey'" 
+        class="text-none mr-2" 
         size="small"
         @click="togglePreview"
       >
         <v-icon start size="small">{{ isPreviewMode ? 'mdi-pencil' : 'mdi-eye' }}</v-icon>
         {{ isPreviewMode ? 'Edit' : 'Preview' }}
+      </v-btn>
+
+      <v-btn color="primary" class="text-none mr-2" size="small" @click="exportProposal">
+        <v-icon start size="small">mdi-file-pdf-box</v-icon>
+        Export PDF
       </v-btn>
 
       <v-btn color="success" class="text-none mr-2" size="small" @click="saveContent">
@@ -159,49 +202,64 @@ onMounted(async () => {
 
       <!-- Show editor when data is loaded -->
       <v-container v-else fluid class="pa-0 fill-height">
-        <v-row no-gutters class="fill-height">
-          <v-col v-if="!isPreviewMode" cols="2" class="bg-white section-sidebar">
-            <v-list density="compact" class="pa-0">
-              <v-list-subheader class="text-grey-darken-1 font-weight-bold">SECTIONS</v-list-subheader>
-              <v-list-item prepend-icon="mdi-file-document-outline" title="Cover" value="cover" class="rounded-0"
-                active-color="primary"></v-list-item>
-              <v-list-item prepend-icon="mdi-file-document-outline" title="Content" value="content" class="rounded-0"
-                active-color="primary"></v-list-item>
-            </v-list>
-          </v-col>
-
-          <v-col :cols="isPreviewMode ? 12 : undefined" class="pa-4 d-flex editor-container">
-            <div class="editor-wrapper">
-              <ToolEditor
-                ref="toolEditor"
-                v-model="content"
-                :zoom="zoom"
-                :action="activeTool"
-                :readonly="isPreviewMode"
-                :showGrid="showGrid"
-              />
-            </div>
-            <div class="vertical-toolbar">
-              <v-tooltip v-for="tool in tools" :key="tool.label" :text="tool.label" location="left">
-                <template v-slot:activator="{ props }">
-                  <v-btn
-                    v-bind="props"
-                    icon
-                    variant="text"
-                    :color="tool.color"
-                    class="tool-button"
-                    :class="{ active: activeTool === tool.action }"
-                    @click="handleToolClick(tool)"
-                  >
-                    <v-icon>{{ tool.icon }}</v-icon>
-                  </v-btn>
-                </template>
-              </v-tooltip>
-            </div>
-          </v-col>
-        </v-row>
+        <div class="editor-container">
+          <ProposalEditor 
+            ref="proposalEditor" 
+            v-model="content" 
+            :zoom="zoom" 
+            :action="activeTool"
+            :readonly="isPreviewMode"
+          />
+          
+          <div v-if="!isPreviewMode" class="vertical-toolbar">
+            <v-tooltip v-for="tool in tools" :key="tool.label" :text="tool.label" location="left">
+              <template v-slot:activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  icon
+                  variant="text"
+                  :color="tool.color"
+                  class="tool-button"
+                  :class="{ active: activeTool === tool.action }"
+                  @click="handleToolClick(tool)"
+                >
+                  <v-icon>{{ tool.icon }}</v-icon>
+                </v-btn>
+              </template>
+            </v-tooltip>
+          </div>
+        </div>
       </v-container>
     </v-main>
+    
+    <!-- Template Selection Dialog -->
+    <v-dialog v-model="showTemplateDialog" max-width="500">
+      <v-card>
+        <v-card-title>Choose a Template</v-card-title>
+        <v-card-text>
+          <v-radio-group v-model="selectedTemplate">
+            <v-radio
+              v-for="template in templates"
+              :key="template.title"
+              :label="template.title"
+              :value="template.title"
+            >
+              <template v-slot:label>
+                <div>
+                  <strong>{{ template.title }}</strong>
+                  <div class="text-caption">{{ template.description }}</div>
+                </div>
+              </template>
+            </v-radio>
+          </v-radio-group>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="showTemplateDialog = false">Cancel</v-btn>
+          <v-btn color="primary" @click="applyTemplate" :disabled="!selectedTemplate">Apply Template</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -215,34 +273,16 @@ onMounted(async () => {
   background-color: white !important;
 }
 
-.v-list-item--active {
-  background-color: #E3F2FD !important;
-}
-
 .v-btn {
   text-transform: none !important;
   letter-spacing: normal !important;
 }
 
-.section-sidebar {
-  position: relative;
-  z-index: 3;
-  /* Increased z-index to stay on top */
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-}
-
 .editor-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
   position: relative;
-  overflow: auto;
-  /* Changed from hidden to auto to allow scrolling */
-  z-index: 1;
-  /* Lower z-index than sidebar */
-}
-
-.editor-wrapper {
-  flex: 1;
-  padding: 20px;
-  min-height: 100%;
 }
 
 .vertical-toolbar {
@@ -254,11 +294,10 @@ onMounted(async () => {
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   height: fit-content;
-  position: sticky;
+  position: absolute;
   top: 20px;
-  margin-left: 16px;
-  z-index: 3;
-  /* Same z-index as sidebar to stay on top */
+  right: 20px;
+  z-index: 10;
 }
 
 .tool-button {

@@ -18,6 +18,7 @@ import Warning from '@editorjs/warning';
 import Underline from '@editorjs/underline';
 import Paragraph from '@editorjs/paragraph'
 import html2pdf from 'html2pdf.js';
+import EditorRuler from './editor_ruler.vue';
 
 const props = defineProps({
   modelValue: {
@@ -35,6 +36,10 @@ const props = defineProps({
   readonly: {
     type: Boolean,
     default: false
+  },
+  showGrid: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -43,6 +48,9 @@ const documentPage = ref(null);
 const textBlocks = ref([]); // Move this declaration up
 const editors = ref(new Map());
 const isSelecting = ref(false);
+const containerWidth = ref(0);
+const containerHeight = ref(0);
+const mousePosition = ref({ x: 0, y: 0 });
 const selectionArea = ref({
   x: 0,
   y: 0,
@@ -183,6 +191,155 @@ const createEditor = (blockId) => {
   return editor;
 };
 
+// Update container dimensions
+const updateContainerDimensions = () => {
+  if (documentPage.value) {
+    containerWidth.value = documentPage.value.clientWidth;
+    containerHeight.value = documentPage.value.clientHeight;
+  }
+};
+
+// Get grid size based on zoom level
+const getGridSize = () => {
+  // Base grid size is 10px, adjusted for zoom
+  return Math.max(5, Math.round(10 * props.zoom / 100));
+};
+
+// Handle block moved event
+const handleBlockMoved = (block) => {
+  if (props.showGrid) {
+    // Ensure block position is snapped to grid
+    const gridSize = getGridSize();
+    block.x = Math.round(block.x / gridSize) * gridSize;
+    block.y = Math.round(block.y / gridSize) * gridSize;
+
+    // Update the model
+    emit('update:modelValue', textBlocks.value);
+  }
+};
+
+// Handle block resized event
+const handleBlockResized = (block) => {
+  if (props.showGrid) {
+    // Ensure block size is snapped to grid
+    const gridSize = getGridSize();
+    block.width = Math.round(block.width / gridSize) * gridSize;
+    block.height = Math.round(block.height / gridSize) * gridSize;
+
+    // Update the model
+    emit('update:modelValue', textBlocks.value);
+  }
+};
+
+// Handle keyboard arrow keys for precise block movement
+const handleKeyDown = (e) => {
+  if (!selectedBlockId.value) return;
+
+  const block = textBlocks.value.find(b => b.id === selectedBlockId.value);
+  if (!block) return;
+
+  // Handle Delete key to remove the selected block
+  if (e.key === 'Delete') {
+    e.preventDefault();
+    deleteSelectedBlock();
+    return;
+  }
+
+  // Determine movement amount
+  let moveAmount;
+
+  if (e.shiftKey) {
+    // Fine movement (1px) when Shift is pressed
+    moveAmount = 1;
+  } else if (props.showGrid) {
+    // Grid size movement when grid is enabled
+    moveAmount = getGridSize();
+  } else {
+    // Default movement (5px)
+    moveAmount = 5;
+  }
+
+  // Handle arrow keys
+  switch (e.key) {
+    case 'ArrowLeft':
+      e.preventDefault();
+      block.x = Math.max(0, block.x - moveAmount);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      block.x = Math.min(containerWidth.value - block.width, block.x + moveAmount);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      block.y = Math.max(0, block.y - moveAmount);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      block.y = Math.min(containerHeight.value - block.height, block.y + moveAmount);
+      break;
+    default:
+      return; // Exit if not an arrow key
+  }
+
+  // Update the model
+  emit('update:modelValue', textBlocks.value);
+};
+
+// Delete the selected block
+const deleteSelectedBlock = () => {
+  if (!selectedBlockId.value) return;
+  deleteBlock(selectedBlockId.value);
+};
+
+// Delete a block by ID
+const deleteBlock = (blockId) => {
+  // Find the index of the block to delete
+  const blockIndex = textBlocks.value.findIndex(b => b.id === blockId);
+  if (blockIndex === -1) return;
+
+  // Get the editor for this block
+  const editor = editors.value.get(blockId);
+  if (editor) {
+    // Destroy the editor instance
+    editor.destroy();
+    editors.value.delete(blockId);
+  }
+
+  // Remove the block from the array
+  textBlocks.value.splice(blockIndex, 1);
+
+  // Clear the selected block ID if it was the one deleted
+  if (selectedBlockId.value === blockId) {
+    selectedBlockId.value = null;
+  }
+
+  // Update the model
+  emit('update:modelValue', textBlocks.value);
+};
+
+// Initialize dimensions when mounted
+onMounted(() => {
+  updateContainerDimensions();
+
+  // Add resize observer to update dimensions when window resizes
+  const resizeObserver = new ResizeObserver(() => {
+    updateContainerDimensions();
+  });
+
+  if (documentPage.value) {
+    resizeObserver.observe(documentPage.value);
+  }
+
+  // Add keyboard event listener for arrow keys
+  document.addEventListener('keydown', handleKeyDown);
+
+  // Clean up observer and event listeners on unmount
+  onUnmounted(() => {
+    resizeObserver.disconnect();
+    document.removeEventListener('keydown', handleKeyDown);
+  });
+});
+
 // Make sure to clean up editors when component is unmounted
 onUnmounted(() => {
   editors.value.forEach(editor => {
@@ -213,18 +370,25 @@ const handleMouseDown = (e) => {
 };
 
 const handleMouseMove = (e) => {
-  if (!isSelecting.value) return;
-
   const rect = documentPage.value.getBoundingClientRect();
   const currentX = e.clientX - rect.left;
   const currentY = e.clientY - rect.top;
 
-  selectionArea.value = {
-    x: Math.min(startX.value, currentX),
-    y: Math.min(startY.value, currentY),
-    width: Math.abs(currentX - startX.value),
-    height: Math.abs(currentY - startY.value),
+  // Update mouse position
+  mousePosition.value = {
+    x: Math.round(currentX),
+    y: Math.round(currentY)
   };
+
+  // Update selection area if selecting
+  if (isSelecting.value) {
+    selectionArea.value = {
+      x: Math.min(startX.value, currentX),
+      y: Math.min(startY.value, currentY),
+      width: Math.abs(currentX - startX.value),
+      height: Math.abs(currentY - startY.value),
+    };
+  }
 };
 
 const handleMouseUp = () => {
@@ -432,6 +596,63 @@ const selectBlock = (id) => {
   selectedBlockId.value = id;
 };
 
+// Get position text for the selected block
+const getSelectedBlockPositionText = () => {
+  if (!selectedBlockId.value) return '';
+
+  const block = textBlocks.value.find(b => b.id === selectedBlockId.value);
+  if (!block) return '';
+
+  return `X: ${block.x}px  Y: ${block.y}px  W: ${block.width}px  H: ${block.height}px`;
+};
+
+// Align blocks to guides
+const alignBlocksToGuides = (guides) => {
+  if (!selectedBlockId.value) return;
+
+  const block = textBlocks.value.find(b => b.id === selectedBlockId.value);
+  if (!block) return;
+
+  // Check if block is close to any horizontal guide
+  if (guides.horizontalGuides) {
+    guides.horizontalGuides.forEach(guidePos => {
+      // Check if top edge is close to guide
+      if (Math.abs(block.y - guidePos) < 10) {
+        block.y = guidePos;
+      }
+      // Check if bottom edge is close to guide
+      else if (Math.abs(block.y + block.height - guidePos) < 10) {
+        block.y = guidePos - block.height;
+      }
+      // Check if center is close to guide
+      else if (Math.abs(block.y + block.height/2 - guidePos) < 10) {
+        block.y = guidePos - block.height/2;
+      }
+    });
+  }
+
+  // Check if block is close to any vertical guide
+  if (guides.verticalGuides) {
+    guides.verticalGuides.forEach(guidePos => {
+      // Check if left edge is close to guide
+      if (Math.abs(block.x - guidePos) < 10) {
+        block.x = guidePos;
+      }
+      // Check if right edge is close to guide
+      else if (Math.abs(block.x + block.width - guidePos) < 10) {
+        block.x = guidePos - block.width;
+      }
+      // Check if center is close to guide
+      else if (Math.abs(block.x + block.width/2 - guidePos) < 10) {
+        block.x = guidePos - block.width/2;
+      }
+    });
+  }
+
+  // Update the model
+  emit('update:modelValue', textBlocks.value);
+};
+
 watch(() => props.action, (newAction) => {
   if (newAction === 'addText') {
     isSelecting.value = false;
@@ -445,12 +666,29 @@ watch(() => props.action, (newAction) => {
     @mouseup="handleMouseUp">
 
     <!-- Text Blocks -->
-    <draggable-resizable-vue v-for="block in textBlocks" :key="block.id" class="resizable-content"
-      :class="{ 'text-block-selected': block.isActive }" @mousedown.stop="selectBlock(block.id)" v-model:x="block.x"
-      v-model:y="block.y" v-model:h="block.height" v-model:w="block.width" v-model:active="block.isActive"
+    <draggable-resizable-vue
+      v-for="block in textBlocks"
+      :key="block.id"
+      class="resizable-content"
+      :class="{ 'text-block-selected': block.id == selectedBlockId }"
+      @mousedown.stop="selectBlock(block.id)"
+      v-model:x="block.x"
+      v-model:y="block.y"
+      v-model:h="block.height"
+      v-model:w="block.width"
+      v-model:active="block.isActive"
+      :grid="props.showGrid ? [getGridSize(), getGridSize()] : [1, 1]"
+      :snap="props.showGrid"
+      @dragstop="handleBlockMoved(block)"
+      @resizestop="handleBlockResized(block)"
       handles-type="borders">
       <div class="text-block-content">
         <div :id="`editor-${block.id}`"></div>
+      </div>
+
+      <!-- Delete Button -->
+      <div v-if="block.isActive && !props.readonly" class="block-delete-btn" @click.stop="deleteBlock(block.id)">
+        <span class="material-icons">close</span>
       </div>
     </draggable-resizable-vue>
 
@@ -470,6 +708,50 @@ watch(() => props.action, (newAction) => {
       width: `${selectionArea.width}px`,
       height: `${selectionArea.height}px`
     }"></div>
+
+    <!-- Ruler Component -->
+    <EditorRuler
+      v-if="!props.readonly"
+      v-model:showGrid="props.showGrid"
+      :zoom="props.zoom"
+      :containerWidth="containerWidth"
+      :containerHeight="containerHeight"
+      :gridSize="getGridSize()"
+      :blocks="textBlocks"
+      @alignBlocks="alignBlocksToGuides"
+    />
+
+    <!-- Position Indicators -->
+    <div v-if="selectedBlockId && !props.readonly" class="position-indicator block-position">
+      {{ getSelectedBlockPositionText() }}
+    </div>
+
+    <!-- Mouse Position Indicator -->
+    <div v-if="!props.readonly" class="position-indicator mouse-position">
+      X: {{ mousePosition.x }}px  Y: {{ mousePosition.y }}px
+    </div>
+
+    <!-- Keyboard Shortcuts Help -->
+    <div v-if="!props.readonly" class="keyboard-shortcuts">
+      <div class="shortcut-icon" title="Keyboard Shortcuts">
+        <span class="material-icons">keyboard</span>
+        <div class="shortcut-tooltip">
+          <div class="tooltip-title">Keyboard Shortcuts</div>
+          <div class="shortcut-item">
+            <span class="key">↑ ↓ ← →</span>
+            <span>Move selected block</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Shift + Arrows</span>
+            <span>Move by 1px</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Delete</span>
+            <span>Delete selected block</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -480,6 +762,8 @@ watch(() => props.action, (newAction) => {
   height: 100%;
   min-height: 800px;
   background: white;
+  padding-top: 25px;  /* Space for horizontal ruler */
+  padding-left: 25px; /* Space for vertical ruler */
 }
 
 .resizable-content {
@@ -531,5 +815,113 @@ watch(() => props.action, (newAction) => {
 :deep(.ce-toolbar__content) {
   max-width: none;
   margin: 0;
+}
+
+/* Position indicators */
+.position-indicator {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.block-position {
+  bottom: 10px;
+  right: 10px;
+}
+
+.mouse-position {
+  top: 35px; /* Below the horizontal ruler */
+  right: 10px;
+}
+
+/* Keyboard shortcuts tooltip */
+.keyboard-shortcuts {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 100;
+}
+
+.shortcut-icon {
+  width: 30px;
+  height: 30px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.shortcut-icon:hover .shortcut-tooltip {
+  display: block;
+}
+
+.shortcut-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 10px;
+  border-radius: 4px;
+  width: 220px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.tooltip-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 5px;
+}
+
+.shortcut-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.key {
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+/* Block delete button */
+.block-delete-btn {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 20px;
+  height: 20px;
+  background-color: #f44336;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.block-delete-btn .material-icons {
+  font-size: 14px;
+}
+
+.block-delete-btn:hover {
+  background-color: #d32f2f;
 }
 </style>
