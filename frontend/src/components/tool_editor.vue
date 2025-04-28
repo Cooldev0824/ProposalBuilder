@@ -617,14 +617,36 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     // Log the content for debugging
     console.log('Blocks content for PDF:', JSON.stringify(blocksContent.slice(0, 1), null, 2));
 
-    // Create a container for the PDF content
+    // Find the maximum x and y coordinates of all blocks to ensure we capture everything
+    let maxX = 0;
+    let maxY = 0;
+
+    blocksContent.forEach(block => {
+      const blockRight = block.x + block.width;
+      const blockBottom = block.y + block.height;
+
+      if (blockRight > maxX) maxX = blockRight;
+      if (blockBottom > maxY) maxY = blockBottom;
+    });
+
+    // Add some padding to ensure we capture everything
+    maxX += 50;
+    maxY += 50;
+
+    // Use these dimensions for the PDF container
+    const containerWidth = Math.max(795, maxX); // At least A4 width
+    const containerHeight = Math.max(1125, maxY); // At least A4 height
+
+    console.log('Container dimensions for PDF:', containerWidth, 'x', containerHeight);
+    console.log('Max block coordinates:', maxX, 'x', maxY);
+
+    // Create a container for the PDF content with dimensions that capture all blocks
     const element = document.createElement('div');
-    // Set the container to A4 size in pixels (roughly 210mm x 297mm at 96 DPI)
-    element.style.width = '795px';  // ~210mm
-    element.style.height = '1125px'; // ~297mm
+    element.style.width = `${containerWidth}px`;
+    element.style.height = `${containerHeight}px`;
     element.style.position = 'relative';
     element.style.margin = '0';
-    element.style.padding = '20px';
+    element.style.padding = '0';
     element.style.fontFamily = 'Arial, sans-serif';
     element.style.color = '#333';
     element.style.boxSizing = 'border-box';
@@ -997,22 +1019,29 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     // Add element to document temporarily
     document.body.appendChild(element);
 
+    // Calculate the PDF dimensions based on the container dimensions
+    // Convert pixels to mm (assuming 96 DPI)
+    const pdfWidth = containerWidth * 25.4 / 96; // Convert px to mm
+    const pdfHeight = containerHeight * 25.4 / 96; // Convert px to mm
+
+    console.log('PDF dimensions (mm):', pdfWidth, 'x', pdfHeight);
+
     const opt = {
-      margin: 10, // Add some margins (in mm)
+      margin: 0, // No margins to match layout exactly
       filename: `${proposalTitle}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 2, // Higher scale for better quality
+        scale: 1, // Use scale 1 to match dimensions exactly
         useCORS: true,
         logging: true, // Enable logging for debugging
         allowTaint: true,
         backgroundColor: null,
-        width: element.offsetWidth,
-        height: element.offsetHeight
+        width: containerWidth,
+        height: containerHeight
       },
       jsPDF: {
         unit: 'mm',
-        format: 'a4',
+        format: [pdfWidth, pdfHeight], // Custom size matching container dimensions
         orientation: 'portrait'
       },
       pagebreak: { mode: ['avoid-all'] }
