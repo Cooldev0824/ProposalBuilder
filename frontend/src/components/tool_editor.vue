@@ -294,14 +294,37 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
 
     // Create a container for the PDF content
     const element = document.createElement('div');
+    // Set the container to A4 size in pixels (roughly 210mm x 297mm at 96 DPI)
+    element.style.width = '795px';  // ~210mm
+    element.style.height = '1125px'; // ~297mm
+    element.style.position = 'relative';
+    element.style.margin = '0';
     element.style.padding = '20px';
-    element.style.maxWidth = '800px';
-    element.style.margin = '0 auto';
-    element.style.background = 'white';
 
-    // Get the current content
-    const currentContent = props.modelValue;
-    console.log('Current content:', currentContent); // Debug log
+    // Add background if it exists
+    if (props.background) {
+      // Set background directly on the main container
+      element.style.backgroundImage = `url(${props.background})`;
+      element.style.backgroundSize = 'cover';
+      element.style.backgroundPosition = 'center';
+      element.style.backgroundRepeat = 'no-repeat';
+    }
+
+    // Create a semi-transparent overlay to make content more readable
+    const overlayDiv = document.createElement('div');
+    overlayDiv.style.position = 'absolute';
+    overlayDiv.style.top = '0';
+    overlayDiv.style.left = '0';
+    overlayDiv.style.right = '0';
+    overlayDiv.style.bottom = '0';
+    overlayDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+    element.appendChild(overlayDiv);
+
+    // Create content container
+    const contentDiv = document.createElement('div');
+    contentDiv.style.position = 'relative';
+    contentDiv.style.zIndex = '2';
+    contentDiv.style.padding = '20px';
 
     // Build the HTML content
     let htmlContent = `
@@ -309,101 +332,61 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
         <h1 style="font-size: 24px; margin-bottom: 20px; color: #333;">${proposalTitle}</h1>
     `;
 
-    // Process each block in the content array
-    if (Array.isArray(currentContent)) {
-      currentContent.forEach(block => {
-        // Extract the blocks array from the content
-        const editorBlocks = block.content.blocks || [];
-
-        editorBlocks.forEach(editorBlock => {
-          switch (editorBlock.type) {
+    // Process each block in the modelValue array
+    for (const block of props.modelValue) {
+      if (block.content && block.content.blocks) {
+        for (const contentBlock of block.content.blocks) {
+          switch (contentBlock.type) {
             case 'header':
-              const level = editorBlock.data.level || 2;
-              htmlContent += `
-                <h${level} style="margin: 15px 0; color: #333;">
-                  ${editorBlock.data.text}
-                </h${level}>`;
+              htmlContent += `<h${contentBlock.data.level || 2} style="margin: 15px 0; color: #333;">
+                ${contentBlock.data.text}
+              </h${contentBlock.data.level || 2}>`;
               break;
 
             case 'paragraph':
-              htmlContent += `
-                <p style="margin: 10px 0; line-height: 1.6;">
-                  ${editorBlock.data.text}
-                </p>`;
+              htmlContent += `<p style="margin: 10px 0; line-height: 1.6;">
+                ${contentBlock.data.text}
+              </p>`;
               break;
 
             case 'list':
-              const listType = editorBlock.data.style === 'ordered' ? 'ol' : 'ul';
-              const listItems = editorBlock.data.items
-                .map(item => `<li style="margin: 5px 0;">${item}</li>`)
-                .join('');
-              htmlContent += `
-                <${listType} style="margin: 10px 0; padding-left: 20px;">
-                  ${listItems}
-                </${listType}>`;
+              const listType = contentBlock.data.style === 'ordered' ? 'ol' : 'ul';
+              htmlContent += `<${listType} style="margin: 10px 0; padding-left: 20px;">
+                ${contentBlock.data.items.map(item => `<li>${item}</li>`).join('')}
+              </${listType}>`;
               break;
 
-            case 'table':
-              const tableContent = editorBlock.data.content
-                .map(row => `
-                  <tr>
-                    ${row.map(cell => `
-                      <td style="border: 1px solid #ddd; padding: 8px;">
-                        ${cell}
-                      </td>`).join('')}
-                  </tr>`
-                ).join('');
-              htmlContent += `
-                <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-                  ${tableContent}
-                </table>`;
-              break;
-
-            case 'quote':
-              htmlContent += `
-                <blockquote style="margin: 15px 0; padding: 10px 20px; border-left: 3px solid #ddd; font-style: italic;">
-                  <p>${editorBlock.data.text}</p>
-                  ${editorBlock.data.caption ?
-                  `<footer style="margin-top: 5px; font-size: 0.9em;">— ${editorBlock.data.caption}</footer>`
-                  : ''}
-                </blockquote>`;
-              break;
-
-            case 'checklist':
-              const checklistItems = editorBlock.data.items
-                .map(item => `
-                  <div style="display: flex; align-items: center; margin: 5px 0;">
-                    <span style="margin-right: 10px;">
-                      ${item.checked ? '☑' : '☐'}
-                    </span>
-                    <span>${item.text}</span>
-                  </div>`
-                ).join('');
-              htmlContent += `
-                <div style="margin: 10px 0;">
-                  ${checklistItems}
-                </div>`;
+            case 'image':
+              if (contentBlock.data.url) {
+                htmlContent += `<img src="${contentBlock.data.url}" 
+                  style="max-width: 100%; margin: 10px 0;" 
+                  alt="${contentBlock.data.caption || ''}" />`;
+              }
               break;
           }
-        });
-      });
+        }
+      }
     }
 
     htmlContent += '</div>';
-    element.innerHTML = htmlContent;
+    contentDiv.innerHTML = htmlContent;
+    element.appendChild(contentDiv);
 
-    // Add element to document
+    // Add element to document temporarily
     document.body.appendChild(element);
-    console.log('HTML content created:', element.innerHTML); // Debug log
 
     const opt = {
-      margin: [15, 15],
+      margin: 0, // Remove margins
       filename: `${proposalTitle}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
         scale: 2,
         useCORS: true,
-        logging: true
+        logging: false,
+        allowTaint: true,
+        backgroundColor: null,
+        width: element.offsetWidth,
+        height: element.offsetHeight
       },
       jsPDF: {
         unit: 'mm',
@@ -413,15 +396,25 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     };
 
     // Generate PDF
-    await html2pdf().set(opt).from(element).save();
-    console.log('PDF generation completed'); // Debug log
-
-    // Cleanup
-    document.body.removeChild(element);
+    try {
+      await html2pdf()
+        .from(element)
+        .set(opt)
+        .save();
+      console.log('PDF generation completed');
+    } catch (pdfError) {
+      console.error('PDF generation error:', pdfError);
+      throw pdfError;
+    } finally {
+      // Cleanup
+      if (element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
+    }
 
     return true;
   } catch (error) {
-    console.error('Error generating PDF:', error);
+    console.error('Error in exportToPDF:', error);
     throw error;
   }
 };

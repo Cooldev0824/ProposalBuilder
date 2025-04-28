@@ -10,6 +10,7 @@ const store = useStore();
 const toolEditor = ref(null);
 const content = ref(null);
 const loading = ref(true);
+const proposal = ref(null);
 
 onMounted(async () => {
   const proposalId = route.params.id;
@@ -18,21 +19,20 @@ onMounted(async () => {
     loading.value = true;
     
     // Fetch proposal data
-    const proposal = await store.dispatch('getProposal', proposalId);
-    console.log('Fetched proposal:', proposal); // Debug log
-
-    if (!proposal) {
+    const fetchedProposal = await store.dispatch('getProposal', proposalId);
+    proposal.value = fetchedProposal;
+    
+    if (!fetchedProposal) {
       throw new Error('Proposal not found');
     }
 
     // Parse the content if it exists
-    if (proposal.content) {
+    if (fetchedProposal.content) {
       try {
-        content.value = JSON.parse(proposal.content);
-        console.log('Parsed content:', content.value); // Debug log
+        content.value = JSON.parse(fetchedProposal.content);
       } catch (e) {
         console.error('Error parsing content:', e);
-        content.value = proposal.content; // Try using content directly if parsing fails
+        content.value = [];
       }
     }
     
@@ -42,22 +42,24 @@ onMounted(async () => {
     // Additional wait to ensure component is fully rendered
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Check if ToolEditor is available
     if (!toolEditor.value) {
-      console.error('ToolEditor ref is not available');
-      return;
+      throw new Error('ToolEditor ref is not available');
     }
 
     // Generate and download PDF
-    await toolEditor.value.exportToPDF(proposal.title || 'proposal');
+    await toolEditor.value.exportToPDF(fetchedProposal.title || 'proposal');
     
     // Wait a bit before redirecting
-    setTimeout(() => router.push('/'), 1500);
+    setTimeout(() => {
+      loading.value = false;
+      router.push('/');
+    }, 1500);
   } catch (error) {
     console.error('Export failed:', error);
-    router.push('/');
-  } finally {
     loading.value = false;
+    // Show error message to user
+    // You might want to add a notification system here
+    setTimeout(() => router.push('/'), 1500);
   }
 });
 </script>
@@ -87,6 +89,7 @@ onMounted(async () => {
           :modelValue="content"
           :readonly="true"
           :zoom="100"
+          :background="proposal?.background"
         />
       </div>
     </v-main>
@@ -107,6 +110,8 @@ onMounted(async () => {
   height: 100%;
 }
 </style>
+
+
 
 
 
