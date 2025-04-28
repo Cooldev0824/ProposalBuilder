@@ -1714,13 +1714,15 @@ watch(() => props.action, (newAction) => {
   background-color: white;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  overflow: hidden;
+  /* Removed overflow: hidden to allow menus to extend outside the block */
   pointer-events: auto;
 }
 
 .text-block-content {
   height: 100%;
   padding: 10px;
+  overflow: auto; /* Allow scrolling for content */
+  position: relative; /* Establish positioning context */
 }
 
 .text-block-selected {
@@ -1749,6 +1751,97 @@ watch(() => props.action, (newAction) => {
   margin: 0;
 }
 
+/* Editor toolbar and settings styles */
+:deep(.ce-toolbar) {
+  z-index: 1000 !important; /* Ensure toolbar appears above other elements */
+  position: absolute !important;
+  background: transparent !important;
+
+  /* Ensure toolbar actions are visible */
+  .ce-toolbar__actions {
+    position: absolute !important;
+    right: 0 !important;
+    top: 0 !important;
+    display: flex !important;
+    padding: 0 !important;
+  }
+}
+
+:deep(.ce-toolbar__plus) {
+  z-index: 1000 !important;
+  background-color: white !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+  width: 26px !important;
+  height: 26px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 5px !important;
+}
+
+:deep(.ce-toolbar__settings-btn) {
+  z-index: 1000 !important;
+  background-color: white !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+  width: 26px !important;
+  height: 26px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+:deep(.ce-conversion-toolbar) {
+  z-index: 1001 !important; /* Higher than toolbar */
+  position: absolute !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  box-shadow: 0 3px 15px -3px rgba(13, 20, 33, 0.13) !important;
+  padding: 6px !important;
+
+  /* Ensure conversion tools are visible */
+  .ce-conversion-tool {
+    display: flex !important;
+    align-items: center !important;
+    padding: 5px !important;
+    border-radius: 3px !important;
+
+    &:hover {
+      background-color: #f1f1f1 !important;
+    }
+
+    &__icon {
+      margin-right: 10px !important;
+    }
+  }
+}
+
+:deep(.ce-settings) {
+  z-index: 1002 !important; /* Higher than conversion toolbar */
+  position: absolute;
+}
+
+:deep(.ce-inline-toolbar) {
+  z-index: 1003 !important; /* Highest priority */
+  position: absolute !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  box-shadow: 0 3px 15px -3px rgba(13, 20, 33, 0.13) !important;
+
+  /* Ensure inline toolbar buttons are visible */
+  .ce-inline-tool {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 5px !important;
+
+    &--active {
+      color: rgb(34, 186, 255) !important;
+    }
+  }
+}
+
 /* Text alignment styles */
 :deep(.ce-block) {
   &.ce-block--left {
@@ -1771,6 +1864,15 @@ watch(() => props.action, (newAction) => {
       background-color: rgba(34, 186, 255, 0.2);
     }
   }
+
+  /* Ensure the settings panel is not cut off */
+  position: absolute !important;
+  left: 0 !important;
+  top: -40px !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  box-shadow: 0 3px 15px -3px rgba(13, 20, 33, 0.13) !important;
+  z-index: 1002 !important;
 }
 
 /* Position indicators */
