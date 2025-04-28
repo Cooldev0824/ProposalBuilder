@@ -19,6 +19,7 @@ import Underline from '@editorjs/underline';
 import Paragraph from '@editorjs/paragraph'
 import html2pdf from 'html2pdf.js';
 import EditorRuler from './editor_ruler.vue';
+import AlignmentTuneTool from 'editorjs-text-alignment-blocktune';
 
 const props = defineProps({
   modelValue: {
@@ -169,19 +170,23 @@ const createEditor = (blockId) => {
         config: {
           levels: [1, 2, 3, 4, 5, 6],
           defaultLevel: 3
-        }
+        },
+        tunes: ['alignmentTune'],
       },
       paragraph: {
         class: Paragraph,
         inlineToolbar: true,
+        tunes: ['alignmentTune'],
       },
       list: {
         class: List,
         inlineToolbar: true,
+        tunes: ['alignmentTune'],
       },
       checklist: {
         class: Checklist,
         inlineToolbar: true,
+        tunes: ['alignmentTune'],
       },
       quote: {
         class: Quote,
@@ -190,9 +195,11 @@ const createEditor = (blockId) => {
           quotePlaceholder: 'Enter a quote',
           captionPlaceholder: 'Quote\'s author',
         },
+        tunes: ['alignmentTune'],
       },
       code: {
         class: Code,
+        tunes: ['alignmentTune'],
       },
       delimiter: {
         class: Delimiter,
@@ -204,6 +211,7 @@ const createEditor = (blockId) => {
           rows: 2,
           cols: 3,
         },
+        tunes: ['alignmentTune'],
       },
       image: {
         class: Image,
@@ -211,6 +219,18 @@ const createEditor = (blockId) => {
           endpoints: {
             byFile: 'http://localhost:8080/uploadFile',
             byUrl: 'http://localhost:8080/fetchUrl',
+          }
+        }
+      },
+      // Add the alignment tune tool
+      alignmentTune: {
+        class: AlignmentTuneTool,
+        config: {
+          default: "left",
+          blocks: {
+            header: 'left',
+            list: 'left',
+            paragraph: 'left'
           }
         }
       }
@@ -580,7 +600,9 @@ const updateBlockContent = (id, content) => {
   const block = textBlocks.value.find(b => b.id === id);
   if (block) {
     block.content = content;
+    // Update the model to save changes including text alignment
     emit('update:modelValue', textBlocks.value);
+    console.log('Block content updated with alignment:', content);
   }
 };
 
@@ -740,6 +762,12 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
                 contentElement.style.color = '#333';
                 contentElement.style.fontWeight = 'bold';
 
+                // Apply text alignment if it exists in the tunes
+                if (contentBlock.tunes && contentBlock.tunes.alignmentTune) {
+                  const alignment = contentBlock.tunes.alignmentTune.alignment;
+                  contentElement.style.textAlign = alignment;
+                }
+
                 // Style headers based on level
                 switch (level) {
                   case 1: contentElement.style.fontSize = '22px'; break;
@@ -761,6 +789,12 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
                 contentElement.style.margin = '5px 0';
                 contentElement.style.lineHeight = '1.4';
                 contentElement.style.fontSize = '14px';
+
+                // Apply text alignment if it exists in the tunes
+                if (contentBlock.tunes && contentBlock.tunes.alignmentTune) {
+                  const alignment = contentBlock.tunes.alignmentTune.alignment;
+                  contentElement.style.textAlign = alignment;
+                }
                 break;
 
               case 'list':
@@ -768,6 +802,12 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
                 contentElement = document.createElement(listType);
                 contentElement.style.margin = '5px 0';
                 contentElement.style.paddingLeft = '20px';
+
+                // Apply text alignment if it exists in the tunes
+                if (contentBlock.tunes && contentBlock.tunes.alignmentTune) {
+                  const alignment = contentBlock.tunes.alignmentTune.alignment;
+                  contentElement.style.textAlign = alignment;
+                }
 
                 if (Array.isArray(contentBlock.data.items)) {
                   contentBlock.data.items.forEach(item => {
@@ -808,6 +848,12 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
                   contentElement.style.width = '100%';
                   contentElement.style.borderCollapse = 'collapse';
                   contentElement.style.margin = '5px 0';
+
+                  // Apply text alignment if it exists in the tunes
+                  if (contentBlock.tunes && contentBlock.tunes.alignmentTune) {
+                    const alignment = contentBlock.tunes.alignmentTune.alignment;
+                    contentElement.style.textAlign = alignment;
+                  }
 
                   contentBlock.data.content.forEach(row => {
                     if (Array.isArray(row)) {
@@ -857,6 +903,12 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
                 contentElement.style.padding = '5px 10px';
                 contentElement.style.fontStyle = 'italic';
                 contentElement.style.color = '#555';
+
+                // Apply text alignment if it exists in the tunes
+                if (contentBlock.tunes && contentBlock.tunes.alignmentTune) {
+                  const alignment = contentBlock.tunes.alignmentTune.alignment;
+                  contentElement.style.textAlign = alignment;
+                }
 
                 const quoteText = typeof contentBlock.data.text === 'string'
                   ? contentBlock.data.text
@@ -1695,6 +1747,30 @@ watch(() => props.action, (newAction) => {
 :deep(.ce-toolbar__content) {
   max-width: none;
   margin: 0;
+}
+
+/* Text alignment styles */
+:deep(.ce-block) {
+  &.ce-block--left {
+    text-align: left;
+  }
+
+  &.ce-block--center {
+    text-align: center;
+  }
+
+  &.ce-block--right {
+    text-align: right;
+  }
+}
+
+/* Alignment tune button styles */
+:deep(.ce-settings) {
+  .ce-settings__button {
+    &--active {
+      background-color: rgba(34, 186, 255, 0.2);
+    }
+  }
 }
 
 /* Position indicators */
