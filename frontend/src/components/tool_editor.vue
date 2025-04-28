@@ -85,7 +85,8 @@ watch(() => props.modelValue, (newValue) => {
         y: block.y,
         width: block.width,
         height: block.height,
-        content: block.content
+        content: block.content,
+        backgroundColor: block.backgroundColor || 'transparent' // Include background color with default
       };
 
       textBlocks.value.push(newBlock);
@@ -312,7 +313,7 @@ const handleBlockMoved = (block) => {
     block.y = Math.round(block.y / gridSize) * gridSize;
 
     // Update the model
-    emit('update:modelValue', textBlocks.value);
+    // emit('update:modelValue', textBlocks.value);
   }
 };
 
@@ -325,7 +326,7 @@ const handleBlockResized = (block) => {
     block.height = Math.round(block.height / gridSize) * gridSize;
 
     // Update the model
-    emit('update:modelValue', textBlocks.value);
+    // emit('update:modelValue', textBlocks.value);
   }
 };
 
@@ -411,7 +412,7 @@ const handleKeyDown = (e) => {
   }
 
   // Update the model
-  emit('update:modelValue', textBlocks.value);
+  // emit('update:modelValue', textBlocks.value);
 };
 
 // Delete the selected block
@@ -443,7 +444,7 @@ const deleteBlock = (blockId) => {
   }
 
   // Update the model
-  emit('update:modelValue', textBlocks.value);
+  // emit('update:modelValue', textBlocks.value);
 };
 
 // Handle clicks on the document
@@ -582,6 +583,7 @@ const handleMouseUp = () => {
     isActive: true,
     content: { blocks: [] },
     zIndex: highestZIndex + 10, // New blocks are placed on top with a significant z-index increment
+    backgroundColor: 'transparent', // Default to transparent background
   };
 
   console.log('Created new block with z-index:', newBlock.zIndex);
@@ -601,7 +603,7 @@ const updateBlockContent = (id, content) => {
   if (block) {
     block.content = content;
     // Update the model to save changes including text alignment
-    emit('update:modelValue', textBlocks.value);
+    // emit('update:modelValue', textBlocks.value);
     console.log('Block content updated with alignment:', content);
   }
 };
@@ -619,7 +621,9 @@ const getAllBlocksContent = async () => {
           y: block.y,
           width: block.width,
           height: block.height,
-          content: content
+          content: content,
+          backgroundColor: block.backgroundColor || 'transparent',
+          zIndex: block.zIndex || 0
         });
       } catch (error) {
         console.error('Error saving block content:', error);
@@ -738,7 +742,7 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
         blockDiv.style.zIndex = block.zIndex || 0;
         blockDiv.style.boxSizing = 'border-box';
         blockDiv.style.padding = '10px';
-        blockDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+        blockDiv.style.backgroundColor = block.backgroundColor || 'transparent';
         blockDiv.style.borderRadius = '4px';
         blockDiv.style.overflow = 'hidden';
 
@@ -1238,7 +1242,7 @@ const moveBlockForward = () => {
   textBlocks.value = [...textBlocks.value];
 
   // Update the model
-  emit('update:modelValue', textBlocks.value);
+  // emit('update:modelValue', textBlocks.value);
 };
 
 // Move the selected block backward in the z-order
@@ -1281,7 +1285,7 @@ const moveBlockBackward = () => {
   textBlocks.value = [...textBlocks.value];
 
   // Update the model
-  emit('update:modelValue', textBlocks.value);
+  // emit('update:modelValue', textBlocks.value);
 };
 
 // Bring the selected block to the front (highest z-index)
@@ -1308,7 +1312,7 @@ const bringBlockToFront = () => {
   textBlocks.value = [...textBlocks.value];
 
   // Update the model
-  emit('update:modelValue', textBlocks.value);
+  // emit('update:modelValue', textBlocks.value);
 };
 
 // Send the selected block to the back (lowest z-index)
@@ -1335,15 +1339,21 @@ const sendBlockToBack = () => {
   textBlocks.value = [...textBlocks.value];
 
   // Update the model
-  emit('update:modelValue', textBlocks.value);
+  // emit('update:modelValue', textBlocks.value);
 };
 
 // Open context menu for a block
 const openContextMenu = (event, blockId) => {
-  // Set the position of the context menu
+  event.preventDefault(); // Prevent default behavior
+  event.stopPropagation(); // Prevent event from bubbling up
+
+  // Calculate position to ensure menu is fully visible
+  const rect = event.target.getBoundingClientRect();
+
+  // Position the menu below the menu button
   contextMenuPosition.value = {
-    x: event.clientX,
-    y: event.clientY
+    x: rect.right,
+    y: rect.bottom
   };
 
   // Set the block ID for the context menu
@@ -1354,6 +1364,14 @@ const openContextMenu = (event, blockId) => {
 
   // Show the context menu
   showContextMenu.value = true;
+
+  // Ensure the menu is visible by setting a very high z-index
+  nextTick(() => {
+    const menu = document.querySelector('.context-menu');
+    if (menu) {
+      menu.style.zIndex = '99999';
+    }
+  });
 
   // Add a click event listener to close the context menu when clicking outside
   document.addEventListener('click', closeContextMenu);
@@ -1367,6 +1385,31 @@ const closeContextMenu = () => {
   // Remove the event listeners
   document.removeEventListener('click', closeContextMenu);
   document.removeEventListener('contextmenu', closeContextMenu);
+};
+
+// Get the background color of the selected block
+const getSelectedBlockBackgroundColor = () => {
+  if (!selectedBlockId.value) return '#ffffff';
+
+  const block = textBlocks.value.find(b => b.id === selectedBlockId.value);
+  if (!block) return '#ffffff';
+
+  // Return the block's background color or default to white if not set
+  return block.backgroundColor || '#ffffff';
+};
+
+// Set the background color of the selected block
+const setBlockBackgroundColor = (event) => {
+  if (!selectedBlockId.value) return;
+
+  const block = textBlocks.value.find(b => b.id === selectedBlockId.value);
+  if (!block) return;
+
+  // Set the block's background color
+  block.backgroundColor = event.target.value;
+
+  // Update the model
+  // emit('update:modelValue', textBlocks.value);
 };
 
 // Handle context menu actions
@@ -1457,7 +1500,7 @@ const alignBlocksToGuides = (guides) => {
   }
 
   // Update the model
-  emit('update:modelValue', textBlocks.value);
+  // emit('update:modelValue', textBlocks.value);
 };
 
 watch(() => props.action, (newAction) => {
@@ -1482,20 +1525,28 @@ watch(() => props.action, (newAction) => {
         'text-block-selected': block.id == selectedBlockId,
         'editable-state': editMode && block.id == selectedBlockId,
         'locked-state': !editMode && block.id == selectedBlockId
-      }" @mousedown.stop="selectBlock(block.id)" @contextmenu.prevent="openContextMenu($event, block.id)"
+      }"
+      :style="{
+        backgroundColor: block.backgroundColor || 'transparent'
+      }"
+      @mousedown.stop="selectBlock(block.id)"
         v-model:x="block.x" v-model:y="block.y" v-model:h="block.height" v-model:w="block.width"
         v-model:active="block.isActive" :grid="props.showGrid ? [getGridSize(), getGridSize()] : [1, 1]"
         :snap="props.showGrid" :draggable="!editMode || block.id != selectedBlockId"
         :resizable="true" @dragstop="handleBlockMoved(block)"
         @resizestop="handleBlockResized(block)" handles-type="borders">
+
+        <!-- Menu button -->
+        <div v-if="block.id == selectedBlockId && !props.readonly" class="block-menu-btn"
+          @click.stop="openContextMenu($event, block.id)" title="Block Options">
+          <span class="material-icons">more_vert</span>
+        </div>
         <div class="text-block-content">
-          <div :id="`editor-${block.id}`"></div>
+          <div :id="`editor-${block.id}`" class="editor-container-inner"></div>
         </div>
 
         <!-- Mode Indicator -->
-        <div v-if="block.id == selectedBlockId && !props.readonly" class="mode-indicator">
-          {{ editMode ? 'Editable State (Edit & Resize)' : 'Locked State (Move & Resize)' }}
-        </div>
+
 
         <!-- Z-Index Controls -->
         <div v-if="block.id == selectedBlockId && !props.readonly" class="block-controls">
@@ -1637,6 +1688,25 @@ watch(() => props.action, (newAction) => {
         <span>Delete Block</span>
       </div>
       <div class="context-menu-divider"></div>
+      <div class="context-menu-header">Style</div>
+      <div class="context-menu-item color-picker-item">
+        <span class="material-icons">format_color_fill</span>
+        <span>Background Color</span>
+        <input
+          type="color"
+          class="color-picker"
+          :value="getSelectedBlockBackgroundColor()"
+          @input="setBlockBackgroundColor($event)"
+        />
+        <button
+          class="transparent-button"
+          @click.stop="setBlockBackgroundColor({ target: { value: 'transparent' } })"
+          title="Set transparent background"
+        >
+          <span class="material-icons">format_color_reset</span>
+        </button>
+      </div>
+      <div class="context-menu-divider"></div>
       <div class="context-menu-header">Arrange</div>
       <div class="context-menu-item" @click="handleContextMenuAction('bringToFront')">
         <span class="material-icons">vertical_align_top</span>
@@ -1687,6 +1757,7 @@ watch(() => props.action, (newAction) => {
   position: relative;
   /* Change to relative */
   z-index: 1;
+  border: 1px dotted gray !important;
   /* Ensure blocks appear above the background */
   background: rgba(255, 255, 255, 0.9);
   /* Semi-transparent background */
@@ -1711,18 +1782,63 @@ watch(() => props.action, (newAction) => {
   position: absolute;
   min-width: 100px;
   min-height: 100px;
-  background-color: white;
+  /* Background color is now set dynamically via inline style */
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  /* Removed overflow: hidden to allow menus to extend outside the block */
+  overflow: visible; /* Allow UI elements to extend outside */
   pointer-events: auto;
 }
 
 .text-block-content {
   height: 100%;
   padding: 10px;
-  overflow: auto; /* Allow scrolling for content */
+  overflow: hidden; /* Hide overflow by default */
   position: relative; /* Establish positioning context */
+  /* Ensure text content stays inside the block */
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Show scrollbars only when block is selected */
+.text-block-selected .text-block-content {
+  overflow: auto; /* Show scrollbars when block is selected */
+}
+
+.editor-container-inner {
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* Hide overflow by default */
+  word-wrap: break-word; /* Break long words to prevent overflow */
+  word-break: break-word; /* Alternative for better browser support */
+}
+
+/* Show scrollbars only when block is selected */
+.text-block-selected .editor-container-inner {
+  overflow: auto; /* Show scrollbars when block is selected */
+}
+
+/* Block menu button */
+.block-menu-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #333;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1000; /* Higher z-index to ensure it's above other elements */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transform: translate(50%, -50%); /* Position it exactly at the corner */
+  overflow: visible; /* Ensure it's not clipped */
+}
+
+.block-menu-btn:hover {
+  background-color: #f0f0f0;
 }
 
 .text-block-selected {
@@ -1742,12 +1858,18 @@ watch(() => props.action, (newAction) => {
 }
 
 :deep(.ce-block__content) {
-  max-width: none;
+  max-width: 100%; /* Limit content width to container */
   margin: 0;
+  overflow: hidden; /* Hide overflow by default */
+}
+
+/* Show scrollbars only when block is selected */
+.text-block-selected :deep(.ce-block__content) {
+  overflow: auto; /* Show scrollbars when block is selected */
 }
 
 :deep(.ce-toolbar__content) {
-  max-width: none;
+  max-width: 100%; /* Limit toolbar width to container */
   margin: 0;
 }
 
@@ -2089,6 +2211,47 @@ watch(() => props.action, (newAction) => {
   font-family: monospace;
 }
 
+/* Color picker styles */
+.color-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.color-picker {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.transparent-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.transparent-button:hover {
+  background-color: #f0f0f0;
+}
+
+.transparent-button .material-icons {
+  font-size: 18px;
+  color: #555;
+}
+
 /* Debug Z-Index Display */
 .debug-z-index {
   position: absolute;
@@ -2112,8 +2275,8 @@ watch(() => props.action, (newAction) => {
   position: absolute;
   top: -10px;
   right: -10px;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background-color: #f44336;
   color: white;
   border-radius: 50%;
@@ -2121,8 +2284,10 @@ watch(() => props.action, (newAction) => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 10;
+  z-index: 1000; /* Higher z-index to ensure it's above other elements */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transform: translate(50%, -50%); /* Position it exactly at the corner */
+  overflow: visible; /* Ensure it's not clipped */
 }
 
 .block-delete-btn .material-icons {
