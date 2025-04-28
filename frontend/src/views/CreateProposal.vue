@@ -19,7 +19,7 @@ const documentBackground = ref('');
 
 const tools = [
   { icon: 'mdi-format-text', label: 'Text', color: '#2196F3', action: 'addText' },
-  { icon: 'mdi-image-outline', label: 'Image', color: '#4CAF50', action: 'addImage' },
+  // { icon: 'mdi-image-outline', label: 'Image', color: '#4CAF50', action: 'addImage' },
   { icon: 'mdi-image-filter-hdr', label: 'Background', color: '#4CAF50', action: 'addBackground' },
   { icon: 'mdi-table', label: 'Table', color: '#FF9800', action: 'addTable' },
   { icon: 'mdi-shape-outline', label: 'Shape', color: '#9C27B0', action: 'addShape' },
