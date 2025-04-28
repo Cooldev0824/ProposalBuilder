@@ -47,14 +47,14 @@ const store = createStore({
         throw error; // Re-throw the error to handle it in the component
       }
     },
-    async updateProposal({ commit }, { id, content, background }) {
+    async updateProposal({ commit }, { id, content, background, pageSize }) {
       try {
         const response = await fetch(`${API_URL}/proposals/${id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ id, content, background }),
+          body: JSON.stringify({ id, content, background, pageSize }),
         });
 
         if (!response.ok) {

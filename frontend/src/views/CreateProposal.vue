@@ -16,6 +16,7 @@ const isPreviewMode = ref(false);
 const loading = ref(true);
 const proposal = ref(null);
 const documentBackground = ref('');
+const pageSize = ref('A4'); // Default page size
 const showGrid = ref(true); // Set to true by default to show the ruler
 
 const tools = [
@@ -36,7 +37,7 @@ const handleToolClick = (tool) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    
+
     input.onchange = (event) => {
       const file = event.target.files[0];
       if (file) {
@@ -47,7 +48,7 @@ const handleToolClick = (tool) => {
         reader.readAsDataURL(file);
       }
     };
-    
+
     input.click();
   } else {
     activeTool.value = tool.action;
@@ -83,7 +84,8 @@ const saveContent = async () => {
     await store.dispatch('updateProposal', {
       id: proposalId,
       content: JSON.stringify(blocksContent),
-      background: documentBackground.value // Add this line
+      background: documentBackground.value,
+      pageSize: pageSize.value
     });
 
     // console.log(res);
@@ -100,12 +102,16 @@ onMounted(async () => {
       loading.value = true;
       const fetchedProposal = await store.dispatch('getProposal', proposalId);
       proposal.value = fetchedProposal;
-      
+
       // Load background if it exists
       if (fetchedProposal.background) {
         documentBackground.value = fetchedProposal.background;
       }
-      
+
+      // Load page size if it exists
+      if (fetchedProposal.pageSize) {
+        pageSize.value = fetchedProposal.pageSize;
+      }
 
       // If there's content, parse it
       if (fetchedProposal.content) {
@@ -197,14 +203,16 @@ onMounted(async () => {
 
           <v-col :cols="isPreviewMode ? 12 : undefined" class="pa-4 d-flex editor-container">
             <div class="editor-outer-wrapper">
-              <ToolEditor 
-                ref="toolEditor" 
-                v-model="content" 
-                :zoom="zoom" 
+              <ToolEditor
+                ref="toolEditor"
+                v-model="content"
+                :zoom="zoom"
                 :action="activeTool"
                 :readonly="isPreviewMode"
                 :background="documentBackground"
                 :showGrid="showGrid"
+                :pageSize="pageSize"
+                @update:pageSize="pageSize = $event"
               />
             </div>
             <div class="vertical-toolbar">

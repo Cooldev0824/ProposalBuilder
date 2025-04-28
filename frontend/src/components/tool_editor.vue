@@ -45,12 +45,26 @@ const props = defineProps({
   showGrid: {
     type: Boolean,
     default: false
+  },
+  pageSize: {
+    type: String,
+    default: 'A4'
   }
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'update:pageSize']);
 const documentPage = ref(null);
 const textBlocks = ref([]); // Move this declaration up
+
+// Define common paper sizes in pixels (at 96 DPI)
+const PAPER_SIZES = {
+  'A4': { width: 794, height: 1123, name: 'A4 (210×297mm)' },
+  'A5': { width: 559, height: 794, name: 'A5 (148×210mm)' },
+  'B5': { width: 693, height: 984, name: 'B5 (176×250mm)' },
+  'Letter': { width: 816, height: 1056, name: 'Letter (8.5×11in)' },
+  'Legal': { width: 816, height: 1344, name: 'Legal (8.5×14in)' },
+  'Tabloid': { width: 1056, height: 1632, name: 'Tabloid (11×17in)' },
+};
 const editors = ref(new Map());
 const isSelecting = ref(false);
 const containerWidth = ref(0);
@@ -70,6 +84,7 @@ const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const contextMenuBlockId = ref(null);
 const editorHasFocus = ref(false); // Track if the editor has focus
+const selectedPageSize = ref(props.pageSize); // Track the selected page size
 
 // Now add the watch after all refs are declared
 watch(() => props.modelValue, (newValue) => {
@@ -290,11 +305,24 @@ const createEditor = (blockId) => {
   return editor;
 };
 
+// Get current page size dimensions
+const getCurrentPageSize = () => {
+  return PAPER_SIZES[props.pageSize] || PAPER_SIZES['A4'];
+};
+
 // Update container dimensions
 const updateContainerDimensions = () => {
   if (documentPage.value) {
-    containerWidth.value = documentPage.value.clientWidth;
-    containerHeight.value = documentPage.value.clientHeight;
+    // If we're using a specific page size, set the container dimensions accordingly
+    if (props.pageSize && PAPER_SIZES[props.pageSize]) {
+      const pageSize = getCurrentPageSize();
+      containerWidth.value = pageSize.width;
+      containerHeight.value = pageSize.height;
+    } else {
+      // Otherwise use the client dimensions
+      containerWidth.value = documentPage.value.clientWidth;
+      containerHeight.value = documentPage.value.clientHeight;
+    }
   }
 };
 
@@ -641,7 +669,47 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     const blocksContent = await getAllBlocksContent();
 
     // Log the content for debugging
-    console.log('Blocks content for PDF:', JSON.stringify(blocksContent.slice(0, 1), null, 2));
+    console.log('Blocks content for PDF:', JSON.stringify(blocksContent, null, 2));
+
+    // Check if we have any blocks
+    if (!blocksContent || blocksContent.length === 0) {
+      console.warn('No blocks found for PDF export');
+      // Create a simple PDF with just the title if no blocks exist
+      const element = document.createElement('div');
+      element.style.width = '794px'; // A4 width
+      element.style.height = '1123px'; // A4 height
+      element.style.padding = '40px';
+      element.style.boxSizing = 'border-box';
+      element.style.fontFamily = 'Arial, sans-serif';
+
+      const titleElement = document.createElement('h1');
+      titleElement.textContent = proposalTitle || 'Empty Proposal';
+      titleElement.style.textAlign = 'center';
+      titleElement.style.marginTop = '40px';
+
+      element.appendChild(titleElement);
+
+      // Add element to document temporarily
+      document.body.appendChild(element);
+
+      // Generate PDF with default A4 size
+      const opt = {
+        margin: 0,
+        filename: `${proposalTitle}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().from(element).set(opt).save();
+
+      // Cleanup
+      if (element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
+
+      return true;
+    }
 
     // Find the maximum x and y coordinates of all blocks to ensure we capture everything
     let maxX = 0;
@@ -659,12 +727,16 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     maxX += 50;
     maxY += 50;
 
+    // Get the current page size
+    const pageSize = getCurrentPageSize();
+
     // Use these dimensions for the PDF container
-    const containerWidth = Math.max(795, maxX); // At least A4 width
-    const containerHeight = Math.max(1125, maxY); // At least A4 height
+    const containerWidth = Math.max(pageSize.width, maxX); // At least the selected page size width
+    const containerHeight = Math.max(pageSize.height, maxY); // At least the selected page size height
 
     console.log('Container dimensions for PDF:', containerWidth, 'x', containerHeight);
     console.log('Max block coordinates:', maxX, 'x', maxY);
+    console.log('Number of blocks:', blocksContent.length);
 
     // Create a container for the PDF content with dimensions that capture all blocks
     const element = document.createElement('div');
@@ -677,6 +749,7 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     element.style.color = '#333';
     element.style.boxSizing = 'border-box';
     element.style.overflow = 'hidden';
+    element.style.backgroundColor = 'white'; // Ensure white background
 
     // Add background if it exists
     if (props.background) {
@@ -695,21 +768,26 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
       element.appendChild(bgContainer);
     }
 
-    // Create a semi-transparent overlay to make content more readable
-    const overlayDiv = document.createElement('div');
-    overlayDiv.style.position = 'absolute';
-    overlayDiv.style.top = '0';
-    overlayDiv.style.left = '0';
-    overlayDiv.style.right = '0';
-    overlayDiv.style.bottom = '0';
-    overlayDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
-    element.appendChild(overlayDiv);
+    // Create a semi-transparent overlay to make content more readable only if background exists
+    if (props.background) {
+      const overlayDiv = document.createElement('div');
+      overlayDiv.style.position = 'absolute';
+      overlayDiv.style.top = '0';
+      overlayDiv.style.left = '0';
+      overlayDiv.style.right = '0';
+      overlayDiv.style.bottom = '0';
+      overlayDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+      overlayDiv.style.zIndex = '1';
+      element.appendChild(overlayDiv);
+    }
 
     // Create content container
     const contentDiv = document.createElement('div');
     contentDiv.style.position = 'relative';
     contentDiv.style.zIndex = '2';
-    contentDiv.style.padding = '20px';
+    contentDiv.style.width = '100%';
+    contentDiv.style.height = '100%';
+    contentDiv.style.padding = '0'; // Remove padding to match exact layout
 
     // Create a container for the content that preserves absolute positioning
     const contentContainer = document.createElement('div');
@@ -718,16 +796,8 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     contentContainer.style.height = '100%';
     contentContainer.style.zIndex = '2';
 
-    // Add title at the top
-    const titleElement = document.createElement('h1');
-    titleElement.textContent = proposalTitle;
-    titleElement.style.fontSize = '24px';
-    titleElement.style.marginBottom = '20px';
-    titleElement.style.color = '#333';
-    titleElement.style.textAlign = 'center';
-    titleElement.style.position = 'relative';
-    titleElement.style.zIndex = '2';
-    contentContainer.appendChild(titleElement);
+    // Skip adding the title element to match the exact design
+    // We'll only include the blocks as they are positioned in the editor
 
     // Process each block in the blocksContent array with absolute positioning
     for (const block of blocksContent) {
@@ -738,16 +808,26 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
         blockDiv.style.left = `${block.x}px`;
         blockDiv.style.top = `${block.y}px`;
         blockDiv.style.width = `${block.width}px`;
-        blockDiv.style.minHeight = `${block.height}px`;
+        blockDiv.style.height = `${block.height}px`; // Use exact height instead of minHeight
         blockDiv.style.zIndex = block.zIndex || 0;
         blockDiv.style.boxSizing = 'border-box';
         blockDiv.style.padding = '10px';
         blockDiv.style.backgroundColor = block.backgroundColor || 'transparent';
         blockDiv.style.borderRadius = '4px';
-        blockDiv.style.overflow = 'hidden';
+        blockDiv.style.overflow = 'auto'; // Use auto instead of hidden to match editor behavior
+
+        // Add border only if background is transparent (to match editor appearance)
+        if (!block.backgroundColor || block.backgroundColor === 'transparent') {
+          blockDiv.style.border = '1px solid #e0e0e0';
+        }
 
         // Create a div to hold the block content
         const blockContent = document.createElement('div');
+        blockContent.style.height = '100%';
+        blockContent.style.width = '100%';
+        blockContent.style.overflow = 'auto';
+        blockContent.style.overflowWrap = 'break-word'; // Modern replacement for wordWrap
+        blockContent.style.wordBreak = 'break-word';
 
         for (const contentBlock of block.content.blocks) {
           try {
@@ -1082,37 +1162,112 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
 
     console.log('PDF dimensions (mm):', pdfWidth, 'x', pdfHeight);
 
+    // Log the element structure for debugging
+    console.log('PDF container element:', element);
+    console.log('Container children count:', element.childNodes.length);
+
+    // Take a screenshot of the element for debugging
+    const debugScreenshot = async () => {
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 1,
+          logging: true,
+          backgroundColor: 'white'
+        });
+        console.log('Debug screenshot taken, canvas size:', canvas.width, 'x', canvas.height);
+
+        // Optionally, you could display this canvas in the DOM for debugging
+        // canvas.style.position = 'fixed';
+        // canvas.style.top = '0';
+        // canvas.style.left = '0';
+        // canvas.style.zIndex = '9999';
+        // canvas.style.border = '2px solid red';
+        // document.body.appendChild(canvas);
+      } catch (e) {
+        console.error('Failed to take debug screenshot:', e);
+      }
+    };
+
+    // Try to take a debug screenshot
+    await debugScreenshot();
+
     const opt = {
       margin: 0, // No margins to match layout exactly
       filename: `${proposalTitle}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg', quality: 1.0 }, // Maximum quality
       html2canvas: {
-        scale: 1, // Use scale 1 to match dimensions exactly
+        scale: 3, // Higher scale for better quality
         useCORS: true,
         logging: true, // Enable logging for debugging
         allowTaint: true,
-        backgroundColor: null,
+        backgroundColor: 'white', // Ensure white background
         width: containerWidth,
-        height: containerHeight
+        height: containerHeight,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: containerWidth,
+        windowHeight: containerHeight,
+        letterRendering: true, // Improve text rendering
+        foreignObjectRendering: false, // Sometimes works better when false
+        removeContainer: false, // Don't remove the cloned container to avoid issues
+        onclone: (clonedDoc) => {
+          // Log the cloned document for debugging
+          console.log('Cloned document for PDF generation:', clonedDoc);
+
+          // Fix any styles in the cloned document if needed
+          const clonedElement = clonedDoc.body.firstChild;
+          if (clonedElement) {
+            console.log('Cloned element found:', clonedElement);
+          }
+        }
       },
       jsPDF: {
         unit: 'mm',
         format: [pdfWidth, pdfHeight], // Custom size matching container dimensions
-        orientation: 'portrait'
+        orientation: 'portrait',
+        compress: true,
+        hotfixes: ['px_scaling'],
+        precision: 16 // Higher precision for better rendering
       },
       pagebreak: { mode: ['avoid-all'] }
     };
 
     // Generate PDF
     try {
-      await html2pdf()
+      // First, try to render to canvas to check if it works
+      console.log('Attempting to render to canvas first...');
+      const canvas = await html2pdf()
         .from(element)
         .set(opt)
+        .toCanvas();
+
+      console.log('Canvas rendering successful, size:', canvas.width, 'x', canvas.height);
+
+      // Now generate the PDF
+      console.log('Generating PDF from canvas...');
+      await html2pdf()
+        .from(canvas)
+        .set(opt)
         .save();
+
       console.log('PDF generation completed');
     } catch (pdfError) {
       console.error('PDF generation error:', pdfError);
-      throw pdfError;
+
+      // Fallback method if the first approach fails
+      try {
+        console.log('Trying direct PDF generation as fallback...');
+        await html2pdf()
+          .from(element)
+          .set(opt)
+          .save();
+        console.log('Fallback PDF generation completed');
+      } catch (fallbackError) {
+        console.error('Fallback PDF generation also failed:', fallbackError);
+        throw fallbackError;
+      }
     } finally {
       // Cleanup
       if (element.parentNode) {
@@ -1126,6 +1281,21 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     throw error;
   }
 };
+
+// Handle page size change
+const handlePageSizeChange = () => {
+  // Emit the new page size
+  emit('update:pageSize', selectedPageSize.value);
+
+  // Update container dimensions
+  updateContainerDimensions();
+};
+
+// Watch for changes to the pageSize prop
+watch(() => props.pageSize, (newSize) => {
+  selectedPageSize.value = newSize;
+  updateContainerDimensions();
+});
 
 // Make sure to expose the method
 defineExpose({
@@ -1512,13 +1682,27 @@ watch(() => props.action, (newAction) => {
 </script>
 
 <template>
-  <div class="editor-container" ref="documentPage" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
-    @mouseup="handleMouseUp" :style="{
-      backgroundImage: props.background ? `url(${props.background})` : 'none',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat'
-    }">
+  <div class="editor-container-wrapper">
+    <!-- Page Size Selector -->
+    <div v-if="!props.readonly" class="page-size-selector">
+      <label for="page-size">Page Size:</label>
+      <select id="page-size" v-model="selectedPageSize" @change="handlePageSizeChange">
+        <option v-for="(size, key) in PAPER_SIZES" :key="key" :value="key">
+          {{ size.name }}
+        </option>
+      </select>
+    </div>
+
+    <div class="editor-container" ref="documentPage" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
+      @mouseup="handleMouseUp" :style="{
+        backgroundImage: props.background ? `url(${props.background})` : 'none',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        width: `${containerWidth}px`,
+        height: `${containerHeight}px`,
+        margin: '0 auto'
+      }">
     <!-- Text Blocks -->
     <div v-for="block in textBlocks" :key="block.id" class="block-wrapper" :style="{ 'z-index': block.zIndex || 0 }">
       <draggable-resizable-vue class="resizable-content" :class="{
@@ -1615,11 +1799,7 @@ watch(() => props.action, (newAction) => {
     </div>
 
     <!-- Debug Z-Index Display -->
-    <div v-if="!props.readonly" class="debug-z-index">
-      <div v-for="block in textBlocks" :key="block.id" class="debug-block">
-        Block {{ block.id.toString().slice(-4) }}: z-index {{ block.zIndex || 0 }}
-      </div>
-    </div>
+
 
     <!-- Mouse Position Indicator -->
     <div v-if="!props.readonly" class="position-indicator mouse-position">
@@ -1730,15 +1910,63 @@ watch(() => props.action, (newAction) => {
       </div>
     </div>
   </div>
+</div>
 </template>
 
 <style scoped>
-.editor-container {
-  position: relative;
+.editor-container-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   width: 100%;
   height: 100%;
-  min-height: 800px;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: #f5f5f5;
+  overflow: auto;
+}
+
+.page-size-selector {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 8px 16px;
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+}
+
+.page-size-selector label {
+  margin-right: 10px;
+  font-weight: 500;
+  color: #333;
+}
+
+.page-size-selector select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+}
+
+.page-size-selector select:hover {
+  border-color: #aaa;
+}
+
+.page-size-selector select:focus {
+  border-color: #2196F3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.editor-container {
+  position: relative;
   background: white;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid #ddd;
 
   /* Add a semi-transparent overlay */
   &::before {

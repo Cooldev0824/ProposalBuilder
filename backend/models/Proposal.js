@@ -5,6 +5,7 @@ const proposalSchema = new mongoose.Schema({
   clientName: { type: String, required: true },
   content: { type: String },
   background: { type: String },
+  pageSize: { type: String, default: 'A4' },
   createdAt: { type: Date, default: Date.now },
 });
 

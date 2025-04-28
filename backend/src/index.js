@@ -60,21 +60,22 @@ app.post('/api/proposalID', async (req, res) => {
 
 app.put('/api/proposals/:id', async (req, res) => {
   try {
-    const { id, content, background } = req.body;
+    const { id, content, background, pageSize } = req.body;
     const proposal = await Proposal.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         content: content,
         background: background,
+        pageSize: pageSize,
         updatedAt: Date.now()
       },
       { new: true }
     );
-    
+
     if (!proposal) {
       return res.status(404).json({ error: 'Proposal not found' });
     }
-    
+
     res.status(200).json(proposal);
   } catch (error) {
     console.error('Error updating proposal:', error);
