@@ -15,10 +15,12 @@ const proposalId = route.params.id;
 const isPreviewMode = ref(false);
 const loading = ref(true);
 const proposal = ref(null);
+const documentBackground = ref('');
 
 const tools = [
   { icon: 'mdi-format-text', label: 'Text', color: '#2196F3', action: 'addText' },
   { icon: 'mdi-image-outline', label: 'Image', color: '#4CAF50', action: 'addImage' },
+  { icon: 'mdi-image-filter-hdr', label: 'Background', color: '#4CAF50', action: 'addBackground' },
   { icon: 'mdi-table', label: 'Table', color: '#FF9800', action: 'addTable' },
   { icon: 'mdi-shape-outline', label: 'Shape', color: '#9C27B0', action: 'addShape' },
   { icon: 'mdi-vector-line', label: 'Line', color: '#795548', action: 'addLine' },
@@ -29,7 +31,26 @@ const tools = [
 ];
 
 const handleToolClick = (tool) => {
-  activeTool.value = tool.action;
+  if (tool.action === 'addBackground') {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    input.onchange = (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          documentBackground.value = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    
+    input.click();
+  } else {
+    activeTool.value = tool.action;
+  }
 };
 
 const increaseZoom = () => {
@@ -47,16 +68,18 @@ const saveContent = async () => {
       return;
     }
 
-    // Get all blocks content from the ToolEditor component
     const blocksContent = await toolEditor.value.getAllBlocksContent();
     
-    // Call the updateProposal API with the blocks content
-    await store.dispatch('updateProposal', {
+    console.log(blocksContent);
+
+    const res = await store.dispatch('updateProposal', {
       id: proposalId,
-      content: JSON.stringify(blocksContent)  // Convert blocks array to string for storage
+      content: JSON.stringify(blocksContent),
+      background: documentBackground.value // Add this line
     });
 
-    console.log('Saved blocks:', blocksContent);
+    console.log(res);
+    console.log('Saved proposal with background');
     router.push('/');
   } catch (error) {
     console.error('Error saving content:', error);
@@ -70,14 +93,15 @@ onMounted(async () => {
       const fetchedProposal = await store.dispatch('getProposal', proposalId);
       proposal.value = fetchedProposal;
       
-      // If there's content, parse it
+      // Load background if it exists
+      if (fetchedProposal.background) {
+        documentBackground.value = fetchedProposal.background;
+      }
+      
       if (fetchedProposal.content) {
         try {
-          // Parse the stringified JSON content
           const parsedContent = JSON.parse(fetchedProposal.content);
-          // Set the content for the ToolEditor
           content.value = parsedContent;
-          console.log('Parsed content:', parsedContent); // For debugging
         } catch (e) {
           console.error('Error parsing proposal content:', e);
           content.value = [];
@@ -161,13 +185,14 @@ onMounted(async () => {
           </v-col>
 
           <v-col :cols="isPreviewMode ? 12 : undefined" class="pa-4 d-flex editor-container">
-            <div class="editor-wrapper">
+            <div class="editor-outer-wrapper">
               <ToolEditor 
                 ref="toolEditor" 
                 v-model="content" 
                 :zoom="zoom" 
                 :action="activeTool"
                 :readonly="isPreviewMode"
+                :background="documentBackground"
               />
             </div>
             <div class="vertical-toolbar">
@@ -228,10 +253,31 @@ onMounted(async () => {
   /* Lower z-index than sidebar */
 }
 
-.editor-wrapper {
+.editor-outer-wrapper {
   flex: 1;
-  padding: 20px;
+  position: relative;
   min-height: 100%;
+  overflow: hidden;
+}
+
+.editor-content-wrapper {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  background-color: rgba(255, 255, 255, 0.9); /* Add slight transparency to see background */
+  padding: 20px;
+}
+
+/* If you want to add a semi-transparent overlay to ensure text readability */
+.editor-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.7); /* Adjust opacity as needed */
+  pointer-events: none; /* Allows clicking through to the editor */
 }
 
 .vertical-toolbar {

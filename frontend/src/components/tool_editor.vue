@@ -35,6 +35,10 @@ const props = defineProps({
   readonly: {
     type: Boolean,
     default: false
+  },
+  background: {
+    type: String,
+    default: ''
   }
 });
 
@@ -441,35 +445,47 @@ watch(() => props.action, (newAction) => {
 </script>
 
 <template>
-  <div class="editor-container" ref="documentPage" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
-    @mouseup="handleMouseUp">
-
+  <div class="editor-container" 
+       ref="documentPage" 
+       @mousedown="handleMouseDown" 
+       @mousemove="handleMouseMove"
+       @mouseup="handleMouseUp"
+       :style="{
+         backgroundImage: props.background ? `url(${props.background})` : 'none',
+         backgroundSize: 'cover',
+         backgroundPosition: 'center',
+         backgroundRepeat: 'no-repeat'
+       }"
+  >
     <!-- Text Blocks -->
-    <draggable-resizable-vue v-for="block in textBlocks" :key="block.id" class="resizable-content"
-      :class="{ 'text-block-selected': block.isActive }" @mousedown.stop="selectBlock(block.id)" v-model:x="block.x"
-      v-model:y="block.y" v-model:h="block.height" v-model:w="block.width" v-model:active="block.isActive"
-      handles-type="borders">
+    <draggable-resizable-vue 
+      v-for="block in textBlocks" 
+      :key="block.id" 
+      class="resizable-content"
+      :class="{ 'text-block-selected': block.isActive }" 
+      @mousedown.stop="selectBlock(block.id)" 
+      v-model:x="block.x"
+      v-model:y="block.y" 
+      v-model:h="block.height" 
+      v-model:w="block.width" 
+      v-model:active="block.isActive"
+      handles-type="borders"
+    >
       <div class="text-block-content">
         <div :id="`editor-${block.id}`"></div>
       </div>
     </draggable-resizable-vue>
 
     <!-- Selection Area -->
-    <div v-if="isSelecting" class="selection-area" :style="{
-      left: `${selectionArea.x}px`,
-      top: `${selectionArea.y}px`,
-      width: `${selectionArea.width}px`,
-      height: `${selectionArea.height}px`,
-    }">
-    </div>
-
-    <!-- Selection Area -->
-    <div v-if="isSelecting" class="selection-area" :style="{
-      left: `${selectionArea.x}px`,
-      top: `${selectionArea.y}px`,
-      width: `${selectionArea.width}px`,
-      height: `${selectionArea.height}px`
-    }"></div>
+    <div v-if="isSelecting" 
+         class="selection-area" 
+         :style="{
+           left: `${selectionArea.x}px`,
+           top: `${selectionArea.y}px`,
+           width: `${selectionArea.width}px`,
+           height: `${selectionArea.height}px`
+         }"
+    ></div>
   </div>
 </template>
 
@@ -480,10 +496,23 @@ watch(() => props.action, (newAction) => {
   height: 100%;
   min-height: 800px;
   background: white;
+  /* Add a semi-transparent overlay */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    pointer-events: none;
+  }
 }
 
 .resizable-content {
-  background: white;
+  position: relative; /* Change to relative */
+  z-index: 1; /* Ensure blocks appear above the background */
+  background: rgba(255, 255, 255, 0.9); /* Semi-transparent background */
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   overflow: hidden;

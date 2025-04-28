@@ -47,11 +47,23 @@ const store = createStore({
         throw error; // Re-throw the error to handle it in the component
       }
     },
-    async updateProposal({ commit }, proposal) {
+    async updateProposal({ commit }, { id, content, background }) {
       try {
-        const response = await axios.put(`${API_URL}/proposals/${proposal.id}`, proposal);
-        commit('updateProposal', response.data);
-        return response.data;
+        const response = await fetch(`${API_URL}/proposals/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id, content, background }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update proposal');
+        }
+
+        console.log(response.body);
+        const updatedProposal = await response.json();
+        return updatedProposal;
       } catch (error) {
         console.error('Error updating proposal:', error);
         throw error;

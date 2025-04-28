@@ -60,11 +60,12 @@ app.post('/api/proposalID', async (req, res) => {
 
 app.put('/api/proposals/:id', async (req, res) => {
   try {
-    const { id, content } = req.body;
+    const { id, content, background } = req.body;
     const proposal = await Proposal.findByIdAndUpdate(
       req.params.id,
       { 
-        content: content,  // This will be the stringified blocks content
+        content: content,
+        background: background,
         updatedAt: Date.now()
       },
       { new: true }
