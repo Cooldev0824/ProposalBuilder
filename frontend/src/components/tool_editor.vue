@@ -233,8 +233,8 @@ const createEditor = (blockId) => {
         class: Image,
         config: {
           endpoints: {
-            byFile: 'http://localhost:8080/uploadFile',
-            byUrl: 'http://localhost:8080/fetchUrl',
+            byFile: `${VUE_APP_API_URL}/uploadFile`,
+            byUrl: `${VUE_APP_API_URL}/fetchUrl`,
           }
         }
       },

@@ -1,7 +1,7 @@
 import { createStore } from 'vuex';
 import axios from 'axios';
 
-const API_URL = 'https://production.1obet.net/api/';
+const API_URL = process.env.VUE_APP_API_URL;
 
 const store = createStore({
   state: {
