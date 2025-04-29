@@ -5,16 +5,17 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const Proposal = require('../models/Proposal')
+require('dotenv').config();
 
 const app = express();
-const PORT = 4000;
+const PORT = process.env.PORT;
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
 // MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/proposals', {
+mongoose.connect(process.env.MONGODB_URL, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
   serverSelectionTimeoutMS: 30000
