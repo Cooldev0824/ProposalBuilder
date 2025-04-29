@@ -36,13 +36,13 @@ const tools = [
   { icon: 'mdi-format-text', label: 'Text', color: '#2196F3', action: 'addText' },
   // { icon: 'mdi-image-outline', label: 'Image', color: '#4CAF50', action: 'addImage' },
   { icon: 'mdi-image-filter-hdr', label: 'Background', color: '#4CAF50', action: 'addBackground' },
-  { icon: 'mdi-table', label: 'Table', color: '#FF9800', action: 'addTable' },
+  //{ icon: 'mdi-table', label: 'Table', color: '#FF9800', action: 'addTable' },
   { icon: 'mdi-shape-outline', label: 'Shape', color: '#9C27B0', action: 'addShape' },
   { icon: 'mdi-vector-line', label: 'Line', color: '#795548', action: 'addLine' },
   { icon: 'mdi-view-grid-outline', label: 'Grid', color: '#607D8B', action: 'addGrid' },
-  { icon: 'mdi-currency-usd', label: 'Pricing', color: '#FF5722', action: 'addPricing' },
-  { icon: 'mdi-signature-freehand', label: 'Signature', color: '#3F51B5', action: 'addSignature' },
-  { icon: 'mdi-pencil', label: 'Draw', color: '#E91E63', action: 'addDraw' },
+  //{ icon: 'mdi-currency-usd', label: 'Pricing', color: '#FF5722', action: 'addPricing' },
+  //{ icon: 'mdi-signature-freehand', label: 'Signature', color: '#3F51B5', action: 'addSignature' },
+  //{ icon: 'mdi-pencil', label: 'Draw', color: '#E91E63', action: 'addDraw' },
 ];
 
 const handleToolClick = (tool) => {
