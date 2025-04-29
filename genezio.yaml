@@ -1,0 +1,30 @@
+backend:
+    functions:
+        - entry: index.mjs
+          handler: handler
+          name: express
+          path: .
+          type: httpServer
+    language:
+        name: js
+        runtime: nodejs20.x
+    path: backend
+    scripts:
+        deploy:
+            - npm install
+        local:
+            - npm install
+frontend:
+    environment:
+        VITE_API_URL_EXPRESS: ${{ backend.functions.express.url }}
+    path: frontend
+    publish: dist
+    scripts:
+        build:
+            - npm run build
+        deploy:
+            - npm install
+    subdomain: ProposalBuilder
+name: ProposalBuilder
+region: us-east-1
+yamlVersion: 2
