@@ -692,13 +692,28 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
       // Add element to document temporarily
       document.body.appendChild(element);
 
-      // Generate PDF with default A4 size
+      // Get the page size from props or use A4 as default
+      const pageSizeForPDF = props.pageSize?.toUpperCase() || 'A4';
+
+      // Generate PDF with specified page size
       const opt = {
         margin: 0,
         filename: `${proposalTitle}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        image: { type: 'jpeg', quality: 1.0 },
+        html2canvas: {
+          scale: 3,
+          useCORS: true,
+          logging: true,
+          allowTaint: true,
+          backgroundColor: 'white',
+          letterRendering: true
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: pageSizeForPDF,
+          orientation: 'portrait',
+          compress: true
+        }
       };
 
       await html2pdf().from(element).set(opt).save();
@@ -1155,12 +1170,25 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
     // Add element to document temporarily
     document.body.appendChild(element);
 
-    // Calculate the PDF dimensions based on the container dimensions
-    // Convert pixels to mm (assuming 96 DPI)
-    const pdfWidth = containerWidth * 25.4 / 96; // Convert px to mm
-    const pdfHeight = containerHeight * 25.4 / 96; // Convert px to mm
+    // Get the page size from props or use A4 as default
+    const pageSizeForPDF = props.pageSize?.toUpperCase() || 'A4';
 
-    console.log('PDF dimensions (mm):', pdfWidth, 'x', pdfHeight);
+    // Use standard page size if available, otherwise calculate from container dimensions
+    let pdfWidth, pdfHeight;
+
+    if (PAPER_SIZES[pageSizeForPDF]) {
+      // Use predefined paper size
+      const paperSize = PAPER_SIZES[pageSizeForPDF];
+      // Convert pixels to mm (assuming 96 DPI)
+      pdfWidth = paperSize.width * 25.4 / 96; // Convert px to mm
+      pdfHeight = paperSize.height * 25.4 / 96; // Convert px to mm
+      console.log(`Using standard ${pageSizeForPDF} size for PDF: ${pdfWidth}mm x ${pdfHeight}mm`);
+    } else {
+      // Calculate from container dimensions
+      pdfWidth = containerWidth * 25.4 / 96; // Convert px to mm
+      pdfHeight = containerHeight * 25.4 / 96; // Convert px to mm
+      console.log('Using custom PDF dimensions (mm):', pdfWidth, 'x', pdfHeight);
+    }
 
     // Log the element structure for debugging
     console.log('PDF container element:', element);
@@ -1225,7 +1253,7 @@ const exportToPDF = async (proposalTitle = 'proposal') => {
       },
       jsPDF: {
         unit: 'mm',
-        format: [pdfWidth, pdfHeight], // Custom size matching container dimensions
+        format: PAPER_SIZES[pageSizeForPDF] ? pageSizeForPDF : [pdfWidth, pdfHeight], // Use standard size if available, otherwise custom
         orientation: 'portrait',
         compress: true,
         hotfixes: ['px_scaling'],

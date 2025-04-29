@@ -61,7 +61,6 @@ const generatePDF = async () => {
     }
 
     console.log('Starting PDF export...');
-    console.log('Content to export:', content.value);
 
     // Check if the editor has content
     if (!content.value || content.value.length === 0) {
@@ -70,47 +69,53 @@ const generatePDF = async () => {
       await nextTick();
     }
 
-    // Find the editor container element
-    const editorContainer = document.querySelector('.tool-editor-container');
-    if (!editorContainer) {
-      console.error('Editor container element not found in DOM');
-      throw new Error('Editor container not found');
-    }
+    // Create a filename with sanitized title
+    const sanitizedTitle = (proposal.value?.title || 'proposal')
+      .replace(/[^a-z0-9]/gi, '_')
+      .toLowerCase();
+    const filename = `${sanitizedTitle}.pdf`;
 
-    console.log('Editor container found in DOM:', editorContainer);
+    // Try the direct method first using the tool editor's exportToPDF method
+    try {
+      console.log('Using tool editor exportToPDF method...');
+      const result = await toolEditor.value.exportToPDF(proposal.value?.title || 'proposal');
 
-    // Find the actual editor element inside the container
-    const editorElement = editorContainer.querySelector('.editor-container');
-    if (!editorElement) {
-      console.error('Editor element not found inside container');
+      if (result) {
+        exportStatus.value = 'success';
+        console.log('PDF export completed successfully');
 
-      // Try to find any visible content
-      const anyContent = editorContainer.querySelector('*');
-      if (anyContent) {
-        console.log('Found some content in the container:', anyContent);
+        // Wait a bit before redirecting
+        setTimeout(() => {
+          router.push('/');
+        }, 2000);
+
+        return true;
       } else {
-        console.error('No content found in the editor container');
+        throw new Error('Tool editor PDF generation returned false');
+      }
+    } catch (toolEditorError) {
+      console.error('Tool editor PDF generation failed:', toolEditorError);
+
+      // Fall back to direct capture method
+      console.log('Falling back to direct capture method...');
+
+      // Find the editor container element
+      const editorContainer = document.querySelector('.tool-editor-container');
+      if (!editorContainer) {
+        throw new Error('Editor container element not found in DOM');
       }
 
-      // Fall back to using the container itself
-      console.log('Falling back to using the container itself');
-    }
+      // Find the document page element which contains the actual content
+      const documentPage = editorContainer.querySelector('.document-page');
+      const editorElement = documentPage || editorContainer.querySelector('.editor-container');
 
-    // Use the element we found, or fall back to the container
-    const elementToCapture = editorElement || editorContainer;
+      // Use the element we found, or fall back to the container
+      const elementToCapture = editorElement || editorContainer;
 
-    // Get the dimensions of the element
-    const rect = elementToCapture.getBoundingClientRect();
-    console.log('Element dimensions:', rect.width, 'x', rect.height);
+      // Get the page size
+      const pageSize = proposal.value?.pageSize?.toUpperCase() || 'A4';
 
-    // Create a filename
-    const filename = `${proposal.value?.title || 'proposal'}.pdf`;
-
-    try {
-      // Use html2pdf directly on the visible element
-      console.log('Capturing visible element with html2pdf...');
-
-      // First try to render to canvas
+      // Render to canvas first for better quality
       const canvas = await html2pdf()
         .from(elementToCapture)
         .set({
@@ -118,7 +123,7 @@ const generatePDF = async () => {
           filename: filename,
           image: { type: 'jpeg', quality: 1.0 },
           html2canvas: {
-            scale: 3,
+            scale: 3, // Higher scale for better quality
             useCORS: true,
             logging: true,
             allowTaint: true,
@@ -127,13 +132,13 @@ const generatePDF = async () => {
           },
           jsPDF: {
             unit: 'mm',
-            format: proposal.value?.pageSize || 'a4',
+            format: pageSize,
             orientation: 'portrait'
           }
         })
         .toCanvas();
 
-      console.log('Canvas generated successfully, size:', canvas.width, 'x', canvas.height);
+      console.log('Canvas generated successfully');
 
       // Now generate PDF from the canvas
       await html2pdf()
@@ -143,14 +148,14 @@ const generatePDF = async () => {
           filename: filename,
           jsPDF: {
             unit: 'mm',
-            format: proposal.value?.pageSize || 'a4',
+            format: pageSize,
             orientation: 'portrait'
           }
         })
         .save();
 
       exportStatus.value = 'success';
-      console.log('PDF export completed successfully');
+      console.log('PDF export completed successfully using direct capture');
 
       // Wait a bit before redirecting
       setTimeout(() => {
@@ -158,31 +163,18 @@ const generatePDF = async () => {
       }, 2000);
 
       return true;
-    } catch (directCaptureError) {
-      console.error('Direct capture failed:', directCaptureError);
-
-      // Fall back to the original method
-      console.log('Falling back to original export method...');
-      const result = await toolEditor.value.exportToPDF(proposal.value?.title || 'proposal');
-
-      if (result) {
-        exportStatus.value = 'success';
-        console.log('PDF export completed successfully using fallback method');
-
-        // Wait a bit before redirecting
-        setTimeout(() => {
-          router.push('/');
-        }, 2000);
-
-        return true;
-      } else {
-        throw new Error('Fallback PDF generation returned false or undefined');
-      }
     }
   } catch (err) {
     console.error('PDF generation failed:', err);
     error.value = err.message || 'Failed to generate PDF';
     exportStatus.value = 'error';
+
+    // Wait a bit before redirecting on error
+    setTimeout(() => {
+      router.push('/');
+    }, 3000);
+
+    return false;
   }
 };
 
@@ -201,8 +193,19 @@ onMounted(async () => {
     // Parse the content if it exists
     if (fetchedProposal.content) {
       try {
-        content.value = JSON.parse(fetchedProposal.content);
+        // Check if content is already an object (already parsed)
+        if (typeof fetchedProposal.content === 'object') {
+          content.value = fetchedProposal.content;
+        } else {
+          content.value = JSON.parse(fetchedProposal.content);
+        }
         console.log('Parsed content:', content.value);
+
+        // Validate content structure
+        if (!Array.isArray(content.value)) {
+          console.error('Content is not an array, resetting to empty array');
+          content.value = [];
+        }
       } catch (e) {
         console.error('Error parsing content:', e);
         content.value = [];
@@ -301,8 +304,8 @@ onMounted(async () => {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10; /* Above the status messages for debugging */
-  opacity: 1; /* Fully visible for debugging */
+  z-index: -1; /* Below the status messages */
+  opacity: 0; /* Hidden but still rendered for PDF generation */
   pointer-events: none; /* Don't interfere with UI */
   background-color: white;
   display: flex;
@@ -311,17 +314,6 @@ onMounted(async () => {
   overflow: auto;
   padding: 20px;
 }
-
-/* For production, use this instead:
-.tool-editor-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  visibility: hidden;
-}
-*/
 
 .export-container {
   max-width: none !important;
